@@ -36,7 +36,7 @@ class Truman_Socket {
 		);
 
 		if ($this->connection === false)
-			$this->throw_error('Unable to create a socket resource');
+			$this->throwError('Unable to create a socket resource');
 
 		if ($this->options['reuse_port']) {
 
@@ -48,18 +48,18 @@ class Truman_Socket {
 			);
 
 			if ($option_set === false)
-				$this->throw_error('Unable to mark socket as reusable', $this->connection);
+				$this->throwError('Unable to mark socket as reusable', $this->connection);
 
 		}
 
 		$force_mode = $this->options['force_mode'];
 
 		// server mode (local)
-		if ($this->is_localhost() && $force_mode !== self::MODE_CLIENT) {
+		if ($this->isLocalhost() && $force_mode !== self::MODE_CLIENT) {
 
 			if ($this->options['nonblocking'])
 				if (@socket_set_nonblock($this->connection) === false);
-					$this->throw_error('Unable to mark socket as non-blocking', $this->connection);
+					$this->throwError('Unable to mark socket as non-blocking', $this->connection);
 
 			$bound = @socket_bind(
 				$this->connection,
@@ -68,7 +68,7 @@ class Truman_Socket {
 			);
 
 			if ($bound === false)
-				$this->throw_error("Unable to bind to socket address {$url}", $this->connection);
+				$this->throwError("Unable to bind to socket address {$url}", $this->connection);
 
 			$listening = @socket_listen(
 				$this->connection,
@@ -76,7 +76,7 @@ class Truman_Socket {
 			);
 
 			if ($listening === false)
-				$this->throw_error("Unable to listen to socket address {$url}", $this->connection);
+				$this->throwError("Unable to listen to socket address {$url}", $this->connection);
 
 			$this->mode = self::MODE_SERVER;
 
@@ -90,7 +90,7 @@ class Truman_Socket {
 			);
 
 			if ($connected === false)
-				$this->throw_error("Unable to connect to socket address {$url}", $this->connection);
+				$this->throwError("Unable to connect to socket address {$url}", $this->connection);
 
 			$this->mode = self::MODE_CLIENT;
 
@@ -121,7 +121,7 @@ class Truman_Socket {
 
 	}
 
-	public function is_localhost() {
+	public function isLocalhost() {
 		switch($this->options['host']) {
 			case 0:
 			case '0.0.0.0':
@@ -135,7 +135,7 @@ class Truman_Socket {
 	public function listen($callback) {
 
 		if (!is_callable($callback))
-			Truman_Exception::throw_new($this, 'Invalid callback passed into '.__METHOD__);
+			Truman_Exception::throwNew($this, 'Invalid callback passed into '.__METHOD__);
 
 		while ($this->receive($callback));
 
@@ -168,7 +168,7 @@ class Truman_Socket {
 		);
 
 		if ($ready === false)
-			$this->throw_error('Unable to detect socket changes');
+			$this->throwError('Unable to detect socket changes');
 
 		if ($ready <= 0)
 			return true;
@@ -213,7 +213,7 @@ class Truman_Socket {
 		$size_limit = $this->options['size_limit'];
 
 		if ($expected_bytes > $size_limit)
-			Truman_Exception::throw_new($this, "Message size greater than limit of {$size_limit} bytes");
+			Truman_Exception::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
 
 		$socket = is_resource($socket) ? $socket : $this->connection;
 
@@ -224,7 +224,7 @@ class Truman_Socket {
 		);
 
 		if ($actual_bytes === false)
-			$this->throw_error('Unable to write to socket', $socket);
+			$this->throwError('Unable to write to socket', $socket);
 
 		if ($actual_bytes >= $expected_bytes)
 			return $actual_bytes - 1;
@@ -235,7 +235,7 @@ class Truman_Socket {
 
 	}
 
-	private function throw_error($msg, $socket = null) {
+	private function throwError($msg, $socket = null) {
 
 		$error_code = is_resource($socket) ?
 			socket_last_error($socket) :
@@ -247,7 +247,7 @@ class Truman_Socket {
 		$error = socket_strerror($error_code);
 		$msg = "{$msg}. {$error}";
 
-		Truman_Exception::throw_new($this, $msg);
+		Truman_Exception::throwNew($this, $msg);
 
 	}
 

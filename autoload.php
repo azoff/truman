@@ -1,4 +1,6 @@
-<? 
+<?
+
+define('TRUMAN_HOME', __DIR__);
 
 spl_autoload_register(function($class) {
 	
@@ -6,8 +8,9 @@ spl_autoload_register(function($class) {
 		return;
 
 	$basename = str_replace('_', '/', $class);
-	$relpath  = "/src/{$basename}.php";
-	$abspath  = __DIR__.$relpath;
+	$basepath = strtolower($basename);
+	$relpath  = "/src/{$basepath}.php";
+	$abspath  = TRUMAN_HOME.$relpath;
 
 	if (!file_exists($abspath))
 		return;

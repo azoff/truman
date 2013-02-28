@@ -6,10 +6,10 @@ class Truman_Buck {
 	private $args   = array();
 	private $kwargs = array();
 
-	public function __construct($callable, array $args = array(), $strict_mode = false) {
+	public function __construct($callable, array $args = array()) {
 		
-		if (!is_callable($callable, !$strict_mode, $callable_name))
-			Truman_Exception::throw_new($this, 'Invalid callable passed into '.__METHOD__);
+		if (!is_callable($callable, true, $callable_name))
+			Truman_Exception::throwNew($this, 'Invalid callable passed into '.__METHOD__);
 
 		$this->callable = $callable_name;
 		
@@ -26,9 +26,18 @@ class Truman_Buck {
 
 		try {
 
-			$function = new ReflectionFunction($this->callable);
-			$args     = array();
-			
+			$args = array();
+			$instance = null;
+
+			if (strpos($this->callable, '::') !== false) {
+				list($class_name, $method_name) = explode('::', $this->callable);
+				$class = new ReflectionClass($class_name);
+				$instance = $class->newInstanceWithoutConstructor();
+				$function = $class->getMethod($method_name);
+			} else {
+				$function = new ReflectionFunction($this->callable);
+			}
+
 			if ($function->getNumberOfParameters() > 0) {
 				$params = $function->getParameters();
 				foreach ($params as $param) {
@@ -41,11 +50,14 @@ class Truman_Buck {
 				}
 			}
 
-			return $function->invokeArgs($args);	
-		
+			if ($instance)
+				return $function->invokeArgs($instance, $args);
+			else
+				return $function->invokeArgs($args);
+
 		} catch(ReflectionException $ex) {
 
-			Truman_Exception::throw_new($this, "Unable to invoke '{$this->callable}'", $ex);
+			Truman_Exception::throwNew($this, "Unable to invoke '{$this->callable}'", $ex);
 
 		}
 

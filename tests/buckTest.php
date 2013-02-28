@@ -1,4 +1,4 @@
-<? require_once(dirname(dirname(__DIR__)).'/autoload.php');
+<? require_once dirname(__DIR__) . '/autoload.php';
 
 class Truman_Buck_Test extends PHPUnit_Framework_TestCase {
 	
@@ -23,26 +23,6 @@ class Truman_Buck_Test extends PHPUnit_Framework_TestCase {
 		$error = null;
 		try {
 			$buck = new Truman_Buck(false, array());
-		} catch(Exception $ex) {
-			$error = $ex;	
-		}
-		$this->assertInstanceOf('Truman_Exception', $error);
-	}
-
-	public function test_non_strict_mode() {
-		$error = null;
-		try {
-			$buck = new Truman_Buck('some_undefined_function', array(), false);
-		} catch(Exception $ex) {
-			$error = $ex;	
-		}
-		$this->assertNull($error);
-	}
-
-	public function test_strict_mode() {
-		$error = null;
-		try {
-			$buck = new Truman_Buck('some_undefined_function', array(), true);
 		} catch(Exception $ex) {
 			$error = $ex;	
 		}

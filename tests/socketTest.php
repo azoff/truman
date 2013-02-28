@@ -1,4 +1,4 @@
-<? require_once(dirname(dirname(__DIR__)).'/autoload.php');
+<? require_once dirname(__DIR__) . '/autoload.php';
 
 class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 
