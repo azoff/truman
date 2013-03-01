@@ -6,8 +6,10 @@ class Truman_Desk {
 	const STDOUT = 1;
 	const STDERR = 2;
 
-	private $stdins, $stdouts, $stderrs;
+	private $inbound;
 	private $processes;
+	private $waiting, $running;
+	private $stdins, $stdouts, $stderrs;
 
 	private static $_DESCRIPTORS = array(
 		array('pipe', 'r'),
@@ -16,23 +18,25 @@ class Truman_Desk {
 	);
 
 	private static $_DEFAULT_OPTIONS = array(
-		'includes' => array()
+		'spawn'   => 5,
+		'include' => array(),
+		'inbound' => ''
 	);
 
 	public function __construct(array $options = array()) {
+
 		$options += self::$_DEFAULT_OPTIONS;
-		$this->spawn($options);
+
+		$this->running = array();
+		$this->waiting = new SplPriorityQueue();
+		$this->inbound = new Truman_Socket($options['inbound']);
+
+		while ($options['spawn']-- > 0)
+			$this->spawnDrawer($options);
+
 	}
 
 	public function __destruct() {
-		$this->destroy();
-	}
-
-	public function destroy() {
-
-		if (!isset($this->processes))
-			return false;
-
 		foreach ($this->processes as $key => $process) {
 			@fputs($this->stdins[$key], "close\n");
 			@fclose($this->stdins[$key]);
@@ -44,26 +48,23 @@ class Truman_Desk {
 		unset($this->stdins);
 		unset($this->stdouts);
 		unset($this->stderrs);
+		unset($this->inbound);
 		gc_collect_cycles();
-
-		return true;
-
 	}
 
-	public function drawer_count() {
-		return isset($this->processes) ? count($this->processes) : 0;
+	public function countWaiting() {
+		return count($this->waiting);
 	}
 
-	public function poll() {
-		do $result = $this->read();
-		while(is_null($result));
-		return $result;
+	public function countRunning() {
+		return count($this->running);
 	}
 
-	public function read() {
+	public function enqueueBuck(Truman_Buck $buck) {
+		$this->waiting->insert($buck, $buck->getPriority());
+	}
 
-		if (!isset($this->processes))
-			return null;
+	public function fetchResult() {
 
 		$result = null;
 		$stdouts = $this->stdouts;
@@ -79,15 +80,72 @@ class Truman_Desk {
 			$stdout = array_pop($stdouts);
 			$xml    = trim(fgets($stdout));
 			$result = new Truman_Result($xml);
+			if ($buck = $result->data()->buck) {
+				$uuid = $buck->getUUID();
+				unset($this->running[$uuid]);
+			}
 		}
 
 		return $result;
 
 	}
 
-	public function spawn(array $options = array()) {
+	public function parseData($data) {
 
-		$command = $options['includes'];
+		if ($data === 'close')
+			return false;
+
+		$buck = @unserialize($data);
+		if ($buck instanceof Truman_Buck)
+			$this->enqueueBuck($buck);
+
+		return true;
+
+	}
+
+	public function processBuck(Truman_Buck $buck) {
+
+		$stdins = $this->stdins;
+
+		if (stream_select($i, $stdins, $j, 0)) {
+			$stdin    = array_pop($stdins);
+			$data     = serialize($buck)."\n";
+			$expected = strlen($data);
+			$actual   = fputs($stdin, $data);
+			return $actual === $expected;
+		}
+
+		return false;
+
+	}
+
+	public function processNextBuck() {
+
+		if ($this->waiting->isEmpty())
+			return false;
+
+		$buck = $this->waiting->current();
+		if ($this->processBuck($buck)) {
+			$uuid = $buck->getUUID();
+			$this->running[$uuid] = $this->waiting->extract();
+			return true;
+		}
+
+		return false;
+
+	}
+
+	public function recieveData() {
+		return $this->inbound->receive(array($this, 'parseData'));
+	}
+
+	public function run() {
+		while($this->tick());
+	}
+
+	public function spawnDrawer(array $options = array()) {
+
+		$command = $options['include'];
 		array_unshift($command, 'bin/drawer.php');
 		array_unshift($command, 'php');
 		$command = implode(' ', $command);
@@ -118,23 +176,22 @@ class Truman_Desk {
 
 	}
 
-	public function write(Truman_Buck $buck) {
+	public function tick() {
+		$continue = $this->recieveData();
+		$this->processNextBuck();
+		$this->fetchResult();
+		return $continue;
+	}
 
-		if (!isset($this->processes))
-			return false;
+	public function waitForResult() {
+		do $result = $this->fetchResult();
+		while(is_null($result));
+		return $result;
+	}
 
-		$stdins = $this->stdins;
-
-		if (stream_select($i, $stdins, $j, 0)) {
-			$stdin    = array_pop($stdins);
-			$data     = serialize($buck)."\n";
-			$expected = strlen($data);
-			$actual   = fputs($stdin, $data);
-			return $actual === $expected;
-		}
-
-		return false;
-
+	public function waitForData() {
+		do $continue = $this->recieveData();
+		while($continue && $this->countWaiting() <= 0);
 	}
 
 }

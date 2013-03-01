@@ -2,17 +2,33 @@
 
 class Truman_Buck {
 
+	const PRIORITY_LOW    = 4096;
+	const PRIORITY_MEDIUM = 2048;
+	const PRIORITY_HIGH   = 1024;
+	const PRIORITY_URGENT = 0;
+
+	private $uuid;
+	private $priority;
 	private $callable;
 	private $args   = array();
 	private $kwargs = array();
 
-	public function __construct($callable, array $args = array()) {
-		
+	private static $_DEFAULT_OPTIONS = array(
+		'priority' => self::PRIORITY_MEDIUM,
+		'dedupe'   => false
+	);
+
+	public function __construct($callable, array $args = array(), array $options = array()) {
+
+		$options += self::$_DEFAULT_OPTIONS;
+
 		if (!is_callable($callable, true, $callable_name))
 			Truman_Exception::throwNew($this, 'Invalid callable passed into '.__METHOD__);
 
 		$this->callable = $callable_name;
-		
+		$this->priority = (int) $options['priority'];
+		$this->uuid     = $this->calculateUUID($options['dedupe']);
+
 		foreach ($args as $key => $value) {
 			if (is_int($key))
 				$this->args[$key] = $value;
@@ -20,6 +36,22 @@ class Truman_Buck {
 				$this->kwargs[$key] = $value;
 		}
 
+	}
+
+	private function calculateUUID($dedupe = false) {
+		$seed  = $this->callable;
+		$seed .= implode(',', $this->args);
+		$seed .= implode(',', $this->kwargs);
+		$seed .= $dedupe ? '' : uniqid(microtime(1), true);
+		return md5($seed);
+	}
+
+	public function getPriority() {
+		return $this->priority;
+	}
+
+	public function getUUID() {
+		return $this->uuid;
 	}
 
 	public function invoke() {
