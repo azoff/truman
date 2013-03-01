@@ -2,7 +2,8 @@
 
 function execute(Truman_Buck $buck) {
 	ob_start();
-	$data['buck'] = $buck;
+	$data['buck']    = $buck;
+	$data['runtime'] = -microtime(true);
 	try {
 		$data['retval'] = @$buck->invoke();
 	} catch (Exception $ex) {
@@ -12,6 +13,7 @@ function execute(Truman_Buck $buck) {
 	} if ($output = ob_get_clean()) {
 		$data['output'] = $output;
 	}
+	$data['runtime'] += microtime(true);
 	return Truman_Result::newInstance(
 		isset($data['retval']) && $data['retval'],
 		(object) $data
