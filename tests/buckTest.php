@@ -19,7 +19,7 @@ class Truman_Buck_Test extends PHPUnit_Framework_TestCase {
 
 	public function test_invalid_callable() {
 		$error = null;
-		try { $buck = new Truman_Buck(false, array()); }
+		try { new Truman_Buck(false); }
 		catch(Exception $ex) { $error = $ex; }
 		$this->assertInstanceOf('Truman_Exception', $error);
 	}
