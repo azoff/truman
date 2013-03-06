@@ -2,22 +2,22 @@
 
 class Truman_Buck_Test extends PHPUnit_Framework_TestCase {
 	
-	public function test_invoke() {
+	public function testInvoke() {
 		$buck = new Truman_Buck('is_null', array(null));
 		$this->assertTrue($buck->invoke());
 	}
 
-	public function test_invoke_args() {
+	public function testInvokeArgs() {
 		$buck = new Truman_Buck('ceil', array(10.5));
 		$this->assertEquals(11, $buck->invoke());
 	}
 
-	public function test_invoke_kwargs() {
+	public function testInvokeKwargs() {
 		$buck = new Truman_Buck('ceil', array('number' => 10.5));
 		$this->assertEquals(11, $buck->invoke());
 	}
 
-	public function test_invalid_callable() {
+	public function testInvalidCallable() {
 		$error = null;
 		try { new Truman_Buck(false); }
 		catch(Exception $ex) { $error = $ex; }

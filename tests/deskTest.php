@@ -2,7 +2,7 @@
 
 class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 
-	public function test_buck() {
+	public function testBuck() {
 		$buck = new Truman_Buck('max', array(1, 2));
 		$desk = new Truman_Desk();
 		$desk->processBuck($buck);
@@ -11,7 +11,7 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($buck, $data->buck);
 	}
 
-	public function test_retval() {
+	public function testRetval() {
 		$buck = new Truman_Buck('strlen', array('test'));
 		$desk = new Truman_Desk();
 		$desk->processBuck($buck);
@@ -20,7 +20,7 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($buck->invoke(), $data->retval);
 	}
 
-	public function test_exception() {
+	public function testException() {
 		$buck = new Truman_Buck('Truman_Exception::throwNew', array('test', 'test'));
 		$desk = new Truman_Desk();
 		$desk->processBuck($buck);
@@ -29,7 +29,7 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertInstanceOf('Truman_Exception', $data->exception);
 	}
 
-	public function test_error() {
+	public function testError() {
 		$buck = new Truman_Buck('fopen');
 		$desk = new Truman_Desk();
 		$desk->processBuck($buck);
@@ -38,7 +38,7 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(2, $data->error['type']);
 	}
 
-	public function test_output() {
+	public function testOutput() {
 		$buck = new Truman_Buck('phpinfo');
 		$desk = new Truman_Desk();
 		$desk->processBuck($buck);
@@ -47,7 +47,7 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertContains('phpinfo()', $data->output);
 	}
 
-	public function test_inbound() {
+	public function testInbound() {
 		$server_addr = '0.0.0.0:12345';
 		$buck = new Truman_Buck('usleep', array(200));
 		$desk = new Truman_Desk(array('inbound' => '0.0.0.0:12345'));

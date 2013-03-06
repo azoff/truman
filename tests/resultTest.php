@@ -2,17 +2,17 @@
 
 class Truman_Result_Test extends PHPUnit_Framework_TestCase {
 	
-	public function test_true() {
+	public function testTrue() {
 		$result = Truman_Result::newInstance(true);
 		$this->assertTrue((bool)$result);
 	}
 
-	public function test_false() {
+	public function testFalse() {
 		$result = Truman_Result::newInstance(false);
 		$this->assertFalse((bool)$result);
 	}
 
-	public function test_data() {
+	public function testData() {
 		$data = 'hello world';
 		$result = Truman_Result::newInstance(true, $data);
 		$this->assertEquals($result->data(), $data);

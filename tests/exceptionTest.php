@@ -2,7 +2,7 @@
 
 class Truman_Exception_Test extends PHPUnit_Framework_TestCase {
 	
-	public function test_throw() {
+	public function testThrowNew() {
 		$error = null;
 		try {
 			Truman_Exception::throwNew($this, 'test');

@@ -2,7 +2,7 @@
 
 class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 
-	public function test_send() {
+	public function testSend() {
 		$socket = new Truman_Socket('0.0.0.0:22', array(
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
@@ -12,7 +12,7 @@ class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 		);
 	}
 
-	public function test_client_mode() {
+	public function testClientMode() {
 		$socket = new Truman_Socket('0.0.0.0:22', array(
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
@@ -22,7 +22,7 @@ class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 		});
 	}
 
-	public function test_server_mode() {
+	public function testServerMode() {
 		$server = new Truman_Socket('0.0.0.0:12345');
 		$client = new Truman_Socket('0.0.0.0:12345', array(
 			'force_mode' => Truman_Socket::MODE_CLIENT
