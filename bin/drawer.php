@@ -26,7 +26,7 @@ function execute(Truman_Buck $buck) {
 
 function tick(array $inputs) {
 
-	if (!stream_select($inputs, $i, $j, 1))
+	if (!@stream_select($inputs, $i, $j, 1))
 		return true;
 
 	$input = trim(fgets($inputs[0]));
@@ -40,16 +40,9 @@ function tick(array $inputs) {
 
 }
 
-function terminate() {
-	print "\nBye!\n";
-	exit(0);
-}
-
 function setup_process() {
 	declare(ticks = 1);
 	ini_set('error_log', false);
-	pcntl_signal(SIGINT, 'terminate');
-	pcntl_signal(SIGTERM, 'terminate');
 }
 
 function require_all(array $include_paths) {
@@ -58,8 +51,8 @@ function require_all(array $include_paths) {
 }
 
 function main(array $argv) {
-	setup_process();
 	require_all(array_slice($argv, 1));
+	setup_process();
 	while(tick(array(STDIN)));
 }
 
