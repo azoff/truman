@@ -2,16 +2,16 @@
 
 class Truman_Buck {
 
-	const PRIORITY_LOW    = 4096;
-	const PRIORITY_MEDIUM = 2048;
-	const PRIORITY_HIGH   = 1024;
-	const PRIORITY_URGENT = 0;
+	const PRIORITY_LOW     = 4096;
+	const PRIORITY_MEDIUM  = 2048;
+	const PRIORITY_HIGH    = 1024;
+	const PRIORITY_URGENT  = 0;
 
 	private $uuid;
 	private $priority;
 	private $callable;
-	private $args   = array();
-	private $kwargs = array();
+	private $kwargs;
+	private $args = array();
 
 	private static $_DEFAULT_OPTIONS = array(
 		'priority' => self::PRIORITY_MEDIUM,
@@ -29,19 +29,14 @@ class Truman_Buck {
 		$this->priority = (int) $options['priority'];
 		$this->uuid     = $this->calculateUUID($options['dedupe']);
 
-		foreach ($args as $key => $value) {
-			if (is_int($key))
-				$this->args[$key] = $value;
-			else
-				$this->kwargs[$key] = $value;
-		}
+		$this->args   = $args;
+		$this->kwargs = (bool) array_filter(array_keys($args), 'is_string');
 
 	}
 
 	private function calculateUUID($dedupe = false) {
 		$seed  = $this->callable;
 		$seed .= implode(',', $this->args);
-		$seed .= implode(',', $this->kwargs);
 		$seed .= $dedupe ? '' : uniqid(microtime(1), true);
 		return md5($seed);
 	}
@@ -58,34 +53,26 @@ class Truman_Buck {
 
 		try {
 
-			$args = array();
-			$instance = null;
-
-			if (strpos($this->callable, '::') !== false) {
-				list($class_name, $method_name) = explode('::', $this->callable);
-				$class = new ReflectionClass($class_name);
-				$instance = $class->newInstanceWithoutConstructor();
-				$function = $class->getMethod($method_name);
-			} else {
-				$function = new ReflectionFunction($this->callable);
-			}
-
-			if ($function->getNumberOfParameters() > 0) {
-				$params = $function->getParameters();
-				foreach ($params as $param) {
-					if (array_key_exists($key = $param->getName(), $this->kwargs))
-						$args[] = $this->kwargs[$key];
-					else if (array_key_exists($key = $param->getPosition(), $this->args))
-						$args[] = $this->args[$key];
-					else
-						$args[] = null;
-				}
-			}
-
-			if ($instance)
-				return $function->invokeArgs($instance, $args);
+			if (strpos($this->callable, '::') !== false)
+				$function = new ReflectionMethod(null, $this->callable);
 			else
-				return $function->invokeArgs($args);
+				$function = new ReflectionFunction($this->callable);
+
+			if ($function->getNumberOfParameters() <= 0)
+				return $function->invoke();
+
+			if (!$this->kwargs)
+				return $function->invokeArgs($this->args);
+
+			$args = array();
+			foreach ($function->getParameters() as $parameter) {
+				$name     = $parameter->getName();
+				$position = $parameter->getPosition();
+				if (array_key_exists($name, $this->args))
+					$args[$position] = $this->args[$name];
+			}
+
+			return $function->invokeArgs($args);
 
 		} catch(ReflectionException $ex) {
 

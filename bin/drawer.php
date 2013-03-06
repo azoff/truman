@@ -14,10 +14,11 @@ function execute(Truman_Buck $buck) {
 		$data['output'] = $output;
 	}
 	$data['runtime'] += microtime(true);
-	return Truman_Result::newInstance(
+	$result = Truman_Result::newInstance(
 		isset($data['retval']) && $data['retval'],
 		(object) $data
 	);
+	return $result;
 }
 
 function main(array $include_paths = array()) {
