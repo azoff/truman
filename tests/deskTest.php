@@ -65,4 +65,11 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($buck->invoke(), $data->retval);
 	}
 
+	public function testKillLoop() {
+		$desk = new Truman_Desk(array('inbound' => '0.0.0.0:12345'));
+		$desk->enqueueBuck(new Truman_Signal());
+		$last_result = $desk->run();
+		$this->assertFalse($last_result);
+	}
+
 }

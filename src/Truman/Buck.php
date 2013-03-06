@@ -11,7 +11,7 @@ class Truman_Buck {
 	private $priority;
 	private $callable;
 	private $kwargs;
-	private $args = array();
+	protected $args = array();
 
 	private static $_DEFAULT_OPTIONS = array(
 		'priority' => self::PRIORITY_MEDIUM,

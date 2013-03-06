@@ -2,13 +2,16 @@
 
 function execute(Truman_Buck $buck) {
 	ob_start();
+	@trigger_error('');
 	$data['buck']    = $buck;
 	$data['runtime'] = -microtime(true);
 	try {
 		$data['retval'] = @$buck->invoke();
 	} catch (Exception $ex) {
 		$data['exception'] = $ex;
-	} if ($error = error_get_last()) {
+	}
+	$error = error_get_last();
+	if (strlen($error['message'])) {
 		$data['error'] = $error;
 	} if ($output = ob_get_clean()) {
 		$data['output'] = $output;
@@ -21,22 +24,43 @@ function execute(Truman_Buck $buck) {
 	return $result;
 }
 
-function main(array $include_paths = array()) {
-	foreach ($include_paths as $include_path) {
-		require_once $include_path;
-	} do {
-		$input = trim(fgets(STDIN));
-		if (isset($input{0}) && $input !== 'close') {
-			$buck = @unserialize($input);
-			if ($buck instanceof Truman_Buck)
-				echo execute($buck)->asXML();
-			else
-				Truman_Exception::throwNew('main', "Unable to understand '{$input}'");
-		}
-	} while($input !== 'close');
-	echo "Closed!\n";
+function tick(array $inputs) {
+
+	if (!stream_select($inputs, $i, $j, 1))
+		return true;
+
+	$input = trim(fgets($inputs[0]));
+	$buck  = @unserialize($input);
+	if ($buck instanceof Truman_Buck)
+		print execute($buck)->asXML();
+	else
+		error_log("Huh? '{$input}' is not a serialize()'d Truman_Buck");
+
+	return true;
+
 }
 
-$args = isset($argv) ? array_slice($argv, 1) : array();
+function terminate() {
+	print "\nBye!\n";
+	exit(0);
+}
 
-main($args);
+function setup_process() {
+	declare(ticks = 1);
+	ini_set('error_log', false);
+	pcntl_signal(SIGINT, 'terminate');
+	pcntl_signal(SIGTERM, 'terminate');
+}
+
+function require_all(array $include_paths) {
+	foreach ($include_paths as $include_path)
+		require_once $include_path;
+}
+
+function main(array $argv) {
+	setup_process();
+	require_all(array_slice($argv, 1));
+	while(tick(array(STDIN)));
+}
+
+main($argv);
