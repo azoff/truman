@@ -6,9 +6,12 @@ class Truman_Desk {
 	const STDOUT = 1;
 	const STDERR = 2;
 
+	private $options;
+	private $waiting;
 	private $inbound;
+	private $continue;
 	private $processes;
-	private $waiting, $running;
+	private $shell_pids, $php_pids;
 	private $stdins, $stdouts, $stderrs;
 
 	private static $_DESCRIPTORS = array(
@@ -18,47 +21,31 @@ class Truman_Desk {
 	);
 
 	private static $_DEFAULT_OPTIONS = array(
-		'spawn'   => 5,
+		'spawn'   => 3,
 		'include' => array(),
-		'inbound' => ''
+		'inbound' => '',
+		'log_drawer_errors' => true,
+		'log_socket_errors' => true
 	);
 
 	public function __construct(array $options = array()) {
-
-		$options += self::$_DEFAULT_OPTIONS;
-
-		$this->running = array();
+		$this->options = $options + self::$_DEFAULT_OPTIONS;
 		$this->waiting = new SplPriorityQueue();
-		$this->inbound = new Truman_Socket($options['inbound']);
-
-		while ($options['spawn']-- > 0)
-			$this->spawnDrawer($options);
-
+		$this->inbound = new Truman_Socket($this->options['inbound']);
+		$spawn = $this->options['spawn'];
+		while ($spawn-- > 0) $this->spawnDrawer();
 	}
 
 	public function __destruct() {
 
-		// send the kill signal to all inputs
-		$signal  = serialize(new Truman_Signal());
-		$to_kill = count($this->stdins);
-		while ($to_kill > 0) {
-			$stdins = $this->stdins;
-			while (!stream_select($i, $stdins, $j, 0));
-			foreach ($stdins as $stdin) {
-				fputs($stdin, $signal);
-				$to_kill--;
-			}
-		}
+		$this->stop();
 
-		// close all streams and close the shell process
-		foreach ($this->processes as $key => $process) {
-			fclose($this->stdins[$key]);
-			fclose($this->stdouts[$key]);
-			fclose($this->stderrs[$key]);
-			proc_close($process);
-		}
+		foreach ($this->drawerKeys() as $key)
+			$this->killDrawer($key);
 
 		// garbage collect
+		unset($this->php_pids);
+		unset($this->shell_pids);
 		unset($this->processes);
 		unset($this->stdins);
 		unset($this->stdouts);
@@ -68,99 +55,199 @@ class Truman_Desk {
 
 	}
 
-	public function countWaiting() {
-		return count($this->waiting);
+	public function isChildless($key) {
+		$pid = $this->shell_pids[$key];
+		return !is_numeric(posix_getsid($pid));
 	}
 
-	public function countRunning() {
-		return count($this->running);
+	public function isOrphaned($key) {
+		$pid = $this->php_pids[$key];
+		return !is_numeric(posix_getsid($pid));
+	}
+
+	public function drawerCount() {
+		return count($this->processes);
+	}
+
+	public function drawerKeys() {
+		return array_keys($this->processes);
 	}
 
 	public function enqueueBuck(Truman_Buck $buck) {
 		$this->waiting->insert($buck, $buck->getPriority());
 	}
 
-	public function fetchResult() {
+	public function killDrawer($key) {
 
-		$result = null;
-		$stdouts = $this->stdouts;
-		$stderrs = $this->stderrs;
+		// send SIGTERM to all child processes
+		posix_kill($this->shell_pids[$key], SIGTERM);
+		posix_kill($this->php_pids[$key], SIGTERM);
 
-		if (stream_select($stderrs, $k, $l, 0)) {
-			$stderr = array_pop($stderrs);
-			$error = trim(fgets($stderr));
-			return Truman_Result::newInstance(false,
-				(object) array('error' => $error));
-		}
+		// close all resources pointing at those processes
+		fclose($this->stdins[$key]);
+		fclose($this->stdouts[$key]);
+		fclose($this->stderrs[$key]);
+		proc_close($this->processes[$key]);
 
-		if (stream_select($stdouts, $i, $j, 0)) {
-			$stdout = array_pop($stdouts);
-			$xml    = trim(fgets($stdout));
-			$result = new Truman_Result($xml);
-			if ($buck = $result->data()->buck) {
-				$uuid = $buck->getUUID();
-				unset($this->running[$uuid]);
-			}
-		}
-
-		return $result;
+		// stop tracking the process
+		unset($this->shell_pids[$key]);
+		unset($this->php_pids[$key]);
+		unset($this->stdins[$key]);
+		unset($this->stdouts[$key]);
+		unset($this->stderrs[$key]);
+		unset($this->processes[$key]);
 
 	}
 
-	public function parseData($data) {
-		$buck = @unserialize($data);
-		if ($buck instanceof Truman_Buck) $this->enqueueBuck($buck);
-		else error_log("Huh? '{$data}' is not a serialize()'d Truman_Buck");
-	}
-
-	public function processBuck(Truman_Buck $buck) {
-
-		if ($buck instanceof Truman_Signal)
-			return false;
-
-		$stdins = $this->stdins;
-
-		if (stream_select($i, $stdins, $j, 0)) {
-			$stdin    = array_pop($stdins);
-			$data     = serialize($buck)."\n";
-			$expected = strlen($data);
-			$actual   = fputs($stdin, $data);
-			return $actual === $expected;
-		}
-
-		return false;
-
-	}
-
-	public function processNextBuck() {
+	public function processBuck() {
 
 		if ($this->waiting->isEmpty())
-			return false;
+			return null;
 
 		$buck = $this->waiting->current();
+		if ($buck instanceof Truman_Signal) {
+			$this->stop();
+			return null;
+		}
 
-		if ($this->processBuck($buck)) {
-			$uuid = $buck->getUUID();
-			$this->running[$uuid] = $this->waiting->extract();
+		return $this->sendBuckToStreams(
+			$this->waiting->extract(),
+			$this->stdins
+		);
+
+	}
+
+	public function reapDrawers() {
+
+		if (!$this->continue)
+			return false;
+
+		foreach ($this->drawerKeys() as $key) {
+			if ($respawn = $this->isChildless($key)) {
+				if ($this->options['log_drawer_errors'])
+					error_log("{$key} is childless, respawning process...");
+			} else if ($respawn = $this->isOrphaned($key)) {
+				if ($this->options['log_drawer_errors'])
+					error_log("{$key} is orphaned, respawning process...");
+			}
+			if ($respawn) {
+				$this->killDrawer($key);
+				$this->spawnDrawer();
+			}
 		}
 
 		return true;
 
 	}
 
-	public function recieveData() {
-		return $this->inbound->receive(array($this, 'parseData'));
+	public function receiveBuck() {
+		$desk = $this;
+		$this->inbound->receive(function($serialized) use (&$desk, &$buck) {
+			$buck = @unserialize($serialized);
+			if ($buck instanceof Truman_Buck)
+				$desk->enqueueBuck($buck);
+			else if ($this->options['log_socket_errors'])
+				error_log("Inbound@{$this->options['inbound']}: '{$serialized}' is not a serialize()'d Truman_Buck");
+		});
+		return $buck;
 	}
 
-	public function run() {
-		do list($buck, $result) = $this->tick();
-		while(!($buck instanceof Truman_Signal));
-		return $result;
+	public function receiveResult() {
+		if (!is_null($result = $this->receiveResultFromStreams($this->stderrs)))
+			return $result;
+		if (!is_null($result = $this->receiveResultFromStreams($this->stdouts)))
+			return $result;
+		return null;
 	}
 
-	public function spawnDrawer(array $options = array()) {
+	private function receiveResultFromStreams(array $streams) {
 
-		$command = $options['include'];
+		if (!stream_select($inputs = $streams, $i, $j, 0))
+			return null;
+
+		foreach ($inputs as $input) {
+
+			if (!strlen($xml = trim(fgets($input))))
+				continue;
+
+			try {
+				$result = new Truman_Result($xml);
+			} catch(Exception $ex) {
+				$result = Truman_Result::newInstance(false, (object) array(
+					'exception' => $ex,
+					'error' => $xml
+				));
+			}
+
+			if ($this->options['log_drawer_errors']) {
+				$key = array_pop(array_keys($streams, $input));
+				if ($data = $result->data()) {
+					if (isset($data->error))
+						error_log("{$key}: Received error with message '{$data->error['message']}' in {$data->error['file']}:{$data->error['line']}");
+					if (isset($data->exception))
+						error_log("{$key}: Received {$data->exception}");
+				} else {
+					error_log("{$key}: Received empty result data");
+				}
+			}
+
+			return $result;
+
+		}
+
+		return null;
+
+	}
+
+	private function sendBuckToStreams(Truman_Buck $buck, array $streams) {
+
+		if (!stream_select($i, $outputs = $streams, $j, 0))
+			return null;
+
+		foreach ($outputs as $output) {
+
+			$data     = serialize($buck)."\n";
+			$expected = strlen($data);
+			$actual   = fputs($output, $data);
+
+			if ($actual !== $expected) {
+				if ($this->options['log_drawer_errors']){
+					$key = array_pop(array_keys($streams, $output));
+					error_log("{$key}: Write error");
+				}
+				continue;
+			}
+
+			return $buck;
+
+		}
+
+		return null;
+
+	}
+
+	public function start($callback = null) {
+		if (is_null($callback))
+			$callback = function() { return true; };
+		else if (!is_callable($callback))
+			Truman_Exception::throwNew($this, 'Invalid callback');
+		$this->continue = true;
+		do {
+			$this->tick($in, $out, $results);
+			foreach($results as $result) {
+				if ($callback($result, $this) === false)
+					break(2);
+			}
+		} while($this->continue);
+	}
+
+	public function stop() {
+		return $this->continue = false;
+	}
+
+	public function spawnDrawer() {
+
+		$command = $this->options['include'];
 		array_unshift($command, 'bin/drawer.php');
 		array_unshift($command, 'php');
 		$command = implode(' ', $command);
@@ -172,42 +259,47 @@ class Truman_Desk {
 
 		if (!is_resource($process))
 			Truman_Exception::throwNew($this, 'Unable to open drawer');
-		if (!is_resource($stdin = $streams[self::STDIN]))
-			Truman_Exception::throwNew($this, 'Unable to write input to drawer');
-		if (!is_resource($stdout = $streams[self::STDOUT]))
-			Truman_Exception::throwNew($this, 'Unable to read output from drawer');
-		if (!is_resource($stderr = $streams[self::STDERR]))
-			Truman_Exception::throwNew($this, 'Unable to read errors from drawer');
 
-		$key = (string) $process;
+		$key = str_replace('Resource id', 'Drawer Resource', $process);
+
+		if (!is_resource($stdin = $streams[self::STDIN]))
+			Truman_Exception::throwNew($this, "{$key}: Unable to write input");
+		if (!is_resource($stdout = $streams[self::STDOUT]))
+			Truman_Exception::throwNew($this, "{$key}: Unable to read output");
+		if (!is_resource($stderr = $streams[self::STDERR]))
+			Truman_Exception::throwNew($this, "{$key}: Unable to read errors");
 
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 
-		$this->processes[$key]   = $process;
-		$this->stdins[$key]      = $stdin;
-		$this->stdouts[$key]     = $stdout;
-		$this->stderrs[$key]     = $stderr;
+		$this->processes[$key] = $process;
+		$this->stdins[$key]    = $stdin;
+		$this->stdouts[$key]   = $stdout;
+		$this->stderrs[$key]   = $stderr;
 
-	}
+		// get shell PID
+		$status = proc_get_status($process);
+		$this->shell_pids[$key] = $status['pid'];
 
-	public function tick() {
-		$this->recieveData();
-		return array(
-			$this->processNextBuck(),
-			$this->fetchResult()
-		);
-	}
-
-	public function waitForResult() {
-		do $result = $this->fetchResult();
+		// get php PID
+		$getmypid = new Truman_Buck('getmypid');
+		do $buck = $this->sendBuckToStreams($getmypid, array($stdin));
+		while (is_null($buck));
+		do $result = $this->receiveResultFromStreams(array($stdout));
 		while(is_null($result));
-		return $result;
+		$this->php_pids[$key] = $result->data()->retval;
+
 	}
 
-	public function waitForData() {
-		do $continue = $this->recieveData();
-		while($continue && $this->countWaiting() <= 0);
+	public function tick(array &$received_bucks = null, array &$sent_bucks = null, array &$received_results = null) {
+		$this->reapDrawers();
+		$received_bucks = $sent_bucks = $received_results = array();
+		while(!is_null($buck = $this->receiveBuck()))
+			$received_bucks[] = $buck;
+		while(!is_null($buck = $this->processBuck()))
+			$sent_bucks[] = $buck;
+		while(!is_null($result = $this->receiveResult()))
+			$received_results[] = $result;
 	}
 
 }

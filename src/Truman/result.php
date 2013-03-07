@@ -38,7 +38,7 @@ class Truman_Result extends SimpleXMLElement {
 	public static function newInstance($truthy = true, $data = null) {
 		$tagname  = self::encode($data);
 		$instance = new self("<$tagname/>");
-		if ($truthy) $instance->truthy = true;
+		if ($truthy) $instance->addAttribute('truthy', 1);
 		return $instance;
 	}
 
