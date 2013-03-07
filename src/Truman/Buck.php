@@ -53,26 +53,32 @@ class Truman_Buck {
 
 		try {
 
-			if (strpos($this->callable, '::') !== false)
-				$function = new ReflectionMethod(null, $this->callable);
-			else
+			if (strpos($this->callable, '::') !== false) {
+				list($class, $method) = explode('::', $this->callable, 2);
+				$function = new ReflectionMethod($class, $method);
+			} else {
 				$function = new ReflectionFunction($this->callable);
-
-			if ($function->getNumberOfParameters() <= 0)
-				return $function->invoke();
-
-			if (!$this->kwargs)
-				return $function->invokeArgs($this->args);
-
-			$args = array();
-			foreach ($function->getParameters() as $parameter) {
-				$name     = $parameter->getName();
-				$position = $parameter->getPosition();
-				if (array_key_exists($name, $this->args))
-					$args[$position] = $this->args[$name];
 			}
 
-			return $function->invokeArgs($args);
+			$args = array();
+
+			if ($function->getNumberOfParameters() > 0) {
+				if ($this->kwargs) {
+					foreach ($function->getParameters() as $parameter) {
+						$name     = $parameter->getName();
+						$position = $parameter->getPosition();
+						if (array_key_exists($name, $this->args))
+							$args[$position] = $this->args[$name];
+					}
+				} else {
+					$args = $this->args;
+				}
+			}
+
+			if (isset($class))
+				return $function->invokeArgs(null, $args);
+
+			return $function->invokeArgs($args) ;
 
 		} catch(ReflectionException $ex) {
 

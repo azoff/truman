@@ -32,7 +32,7 @@ function tick(array $inputs) {
 	$input = trim(fgets($inputs[0]));
 	$buck  = @unserialize($input);
 	if ($buck instanceof Truman_Buck)
-		print execute($buck)->asXML();
+		echo execute($buck)->asXML() . "\n";
 	else
 		error_log("Huh? '{$input}' is not a serialize()'d Truman_Buck");
 
@@ -53,7 +53,9 @@ function require_all(array $include_paths) {
 function main(array $argv) {
 	require_all(array_slice($argv, 1));
 	setup_process();
-	while(tick(array(STDIN)));
+	$stdin = array(STDIN);
+	do tick($stdin);
+	while(true);
 }
 
 main($argv);

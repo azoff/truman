@@ -132,15 +132,6 @@ class Truman_Socket {
 		return false;
 	}
 
-	public function listen($callback) {
-
-		if (!is_callable($callback))
-			Truman_Exception::throwNew($this, 'Invalid callback passed into '.__METHOD__);
-
-		while ($this->receive($callback));
-
-	}
-
 	public function open($socket) {
 
 		if (!is_resource($socket))
@@ -171,7 +162,7 @@ class Truman_Socket {
 			$this->throwError('Unable to detect socket changes');
 
 		if ($ready <= 0)
-			return true;
+			return false;
 
 		$read_limit = $this->options['size_limit'];
 
@@ -193,14 +184,13 @@ class Truman_Socket {
 				// otherwise delegate interpretation of the data to the caller
 				} else {
 					$message = rtrim($message, $this->options['msg_delimiter']);
-					if (!call_user_func($callback, $message, $this, $socket))
-						return false;
+					return call_user_func($callback, $message, $this, $socket) !== false;
 				}
 
 			}
 		}
 
-		return true;
+		return false;
 
 	}
 

@@ -13,28 +13,41 @@ class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testClientMode() {
+		$test = $this;
 		$socket = new Truman_Socket('0.0.0.0:22', array(
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
 		$socket->send('What are you?');
-		$socket->receive(function($header){
-			$this->assertRegExp('#SSH#', $header);
+		$socket->receive(function($header) use (&$test) {
+			$test->assertRegExp('#SSH#', $header);
 		});
 	}
 
 	public function testServerMode() {
+
 		$server = new Truman_Socket('0.0.0.0:12345');
 		$client = new Truman_Socket('0.0.0.0:12345', array(
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
-		$client->send('wait for it...');
-		$client->send('wait for it...');
-		$client->send('wait for it...');
-		$client->send('wait for it...');
-		$client->send('go!');
-		$server->listen(function($msg){
-			return $msg !== 'go!';
+
+		$ticks = 5;
+		$tocks = 0;
+
+		$client->send('1');
+		$client->send('1');
+		$client->send('1');
+		$client->send('1');
+		$client->send('1');
+
+		do $server->receive(function($msg) use (&$ticks, &$tocks) {
+			$tocks += intval($msg);
+			$ticks--;
 		});
+
+		while ($ticks > 0);
+
+		$this->assertEquals(5, $tocks);
+
 	}
 
 }
