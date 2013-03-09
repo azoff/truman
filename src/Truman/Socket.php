@@ -25,9 +25,9 @@ class Truman_Socket {
 	private $connection;
 	private $sockets = array();
 
-	public function __construct($url, array $options = array()) {
+	public function __construct(array $options = array()) {
 
-		$this->options = parse_url($url) + $options + self::$_DEFAULT_OPTIONS;
+		$this->options = $options + self::$_DEFAULT_OPTIONS;
 
 		$this->connection = @socket_create(
 			$this->options['socket_domain'],
@@ -55,7 +55,7 @@ class Truman_Socket {
 		$force_mode = $this->options['force_mode'];
 
 		// server mode (local)
-		if ($this->isLocalhost() && $force_mode !== self::MODE_CLIENT) {
+		if (self::isLocal($this->getHostSpec()) && $force_mode !== self::MODE_CLIENT) {
 
 			if ($this->options['nonblocking'])
 				if (@socket_set_nonblock($this->connection) === false);
@@ -68,7 +68,7 @@ class Truman_Socket {
 			);
 
 			if ($bound === false)
-				$this->throwError("Unable to bind to socket address {$url}", $this->connection);
+				$this->throwError("Unable to bind to {$this}", $this->connection);
 
 			$listening = @socket_listen(
 				$this->connection,
@@ -76,7 +76,7 @@ class Truman_Socket {
 			);
 
 			if ($listening === false)
-				$this->throwError("Unable to listen to socket address {$url}", $this->connection);
+				$this->throwError("Unable to listen to {$this}", $this->connection);
 
 			$this->mode = self::MODE_SERVER;
 
@@ -90,7 +90,7 @@ class Truman_Socket {
 			);
 
 			if ($connected === false)
-				$this->throwError("Unable to connect to socket address {$url}", $this->connection);
+				$this->throwError("Unable to connect to {$this}", $this->connection);
 
 			$this->mode = self::MODE_CLIENT;
 
@@ -102,6 +102,11 @@ class Truman_Socket {
 
 	public function __destruct() {
 		$this->close($this->connection);
+	}
+
+	public function __toString() {
+		$spec = $this->getHostSpec();
+		return __CLASS__."<{$spec['host']}:{$spec['port']}>";
 	}
 
 	public function close($socket) {
@@ -121,15 +126,14 @@ class Truman_Socket {
 
 	}
 
-	public function isLocalhost() {
-		switch($this->options['host']) {
-			case 0:
-			case '0.0.0.0':
-			case '127.0.0.1':
-			case 'localhost':
-				return true;
-		}
-		return false;
+	public function getHostSpec() {
+		$host = $port = null;
+		if ($this->sockets)
+			socket_getpeername($this->connection, $host, $port);
+		return array(
+			'host' => $host ?: $this->options['host'],
+			'port' => $port ?: $this->options['port']
+		);
 	}
 
 	public function open($socket) {
@@ -147,16 +151,9 @@ class Truman_Socket {
 
 	}
 
-	public function receive($callback) {
+	public function receive($callback = null, $timeout = 0) {
 
-		// this cryptic API uses the OS select() method to determine
-		// which sockets are ready to be read from
-		$ready = @socket_select(
-			$read   = $this->sockets,
-			$write  = array(),
-			$except = array(),
-			0
-		);
+		$ready = @socket_select($read = $this->sockets, $i, $j, $timeout);
 
 		if ($ready === false)
 			$this->throwError('Unable to detect socket changes');
@@ -164,6 +161,7 @@ class Truman_Socket {
 		if ($ready <= 0)
 			return false;
 
+		$continue = false;
 		$read_limit = $this->options['size_limit'];
 
 		foreach ($read as $socket) {
@@ -171,7 +169,7 @@ class Truman_Socket {
 			// this happens when a new connection arrives on our socket
 			if ($socket === $this->connection && $this->mode !== self::MODE_CLIENT) {
 
-				$this->open(@socket_accept($this->connection));
+				$continue = $this->open(@socket_accept($this->connection));
 
 			} else {
 
@@ -184,17 +182,29 @@ class Truman_Socket {
 				// otherwise delegate interpretation of the data to the caller
 				} else {
 					$message = rtrim($message, $this->options['msg_delimiter']);
-					return call_user_func($callback, $message, $this, $socket) !== false;
+					if (is_callable($callback))
+						return call_user_func($callback, $message, $this, $socket) !== false;
+					else
+						return $message;
 				}
 
 			}
 		}
 
-		return false;
+		return $continue;
 
 	}
 
-	public function send($message, $socket = null) {
+	public function send($message, $socket = null, $timeout = 0) {
+
+		$write = is_resource($socket) ? array($socket) : array($this->connection);
+
+		$ready = @socket_select($i, $write, $j, $timeout);
+
+		if ($ready === false)
+			$this->throwError('Unable to detect socket changes');
+
+		if ($ready <= 0) return 0;
 
 		$delimeter = $this->options['msg_delimiter'];
 		$message   = rtrim($message, $delimeter) . $delimeter;
@@ -205,13 +215,7 @@ class Truman_Socket {
 		if ($expected_bytes > $size_limit)
 			Truman_Exception::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
 
-		$socket = is_resource($socket) ? $socket : $this->connection;
-
-		$actual_bytes = @socket_write(
-			$socket,
-			$message,
-			$expected_bytes
-		);
+		$actual_bytes = @socket_write($write[0], $message, $expected_bytes);
 
 		if ($actual_bytes === false)
 			$this->throwError('Unable to write to socket', $socket);
@@ -221,8 +225,14 @@ class Truman_Socket {
 
 		// message truncated, need to retry
 		$message = substr($message, $actual_bytes);
-		return $actual_bytes - 1 + $this->send($message);
+		return $actual_bytes - 1 + $this->send($message, $socket, $timeout);
 
+	}
+
+	public function sendBuck(Truman_Buck $buck, $socket = null, $timeout = 0) {
+		$expected = strlen($message = serialize($buck));
+		$actual = $this->send($message, $socket, $timeout);
+		return $expected === $actual;
 	}
 
 	private function throwError($msg, $socket = null) {
@@ -238,6 +248,14 @@ class Truman_Socket {
 		$msg = "{$msg}. {$error}";
 
 		Truman_Exception::throwNew($this, $msg);
+
+	}
+
+	public static function isLocal($host_spec) {
+		$host = $host_spec['host'];
+		return in_array($host, array(
+			0, '0.0.0.0', '127.0.0.1', 'localhost', gethostname()
+		));
 
 	}
 

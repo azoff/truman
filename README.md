@@ -5,8 +5,7 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Handle STDERR and drawer shutdown with a graceful restart
-- Create a circular hashing class
-- Create client
-- Implement load testing
+- Create tests for client
+  + channels, sig updates, local vs. remote verification
 - Create an example client/server
+- Implement load testing

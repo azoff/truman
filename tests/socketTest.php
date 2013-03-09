@@ -2,52 +2,47 @@
 
 class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 
-	public function testSend() {
-		$socket = new Truman_Socket('0.0.0.0:22', array(
+	public function testSendReceive() {
+		$message = 'hello world!';
+		$server = new Truman_Socket(array('port' => 12345));
+		$client = new Truman_Socket(array(
+			'port'       => 12345,
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
-		$this->assertEquals(
-			strlen($msg = 'foobars'),
-			$socket->send($msg)
-		);
+		$this->assertEquals(strlen($message), $client->send($message, null, 5));
+		$this->assertTrue($server->receive()); // accept the connection
+		$this->assertEquals($message, $server->receive()); // receive the value
 	}
 
-	public function testClientMode() {
-		$test = $this;
-		$socket = new Truman_Socket('0.0.0.0:22', array(
+	public function testSendBuck() {
+		$buck = new Truman_Buck();
+		$server = new Truman_Socket(array('port' => 12345));
+		$client = new Truman_Socket(array(
+			'port'       => 12345,
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
-		$socket->send('What are you?');
-		$socket->receive(function($header) use (&$test) {
-			$test->assertRegExp('#SSH#', $header);
-		});
+		$this->assertTrue($client->sendBuck($buck, null, 5));
+		$this->assertTrue($server->receive()); // accept the connection
+		$received = unserialize($server->receive()); // receive the value
+		$this->assertEquals($buck, $received); // compare the unserialized buck
 	}
 
-	public function testServerMode() {
+	public function testCallback() {
 
-		$server = new Truman_Socket('0.0.0.0:12345');
-		$client = new Truman_Socket('0.0.0.0:12345', array(
+		$server = new Truman_Socket(array('port' => 12345));
+		$client = new Truman_Socket(array(
+			'port'       => 12345,
 			'force_mode' => Truman_Socket::MODE_CLIENT
 		));
 
-		$ticks = 5;
-		$tocks = 0;
+		$client->send($sent = 'hello world!');
 
-		$client->send('1');
-		$client->send('1');
-		$client->send('1');
-		$client->send('1');
-		$client->send('1');
+		while ($server->receive(function($message) use (&$received) {
+			$received = $message;
+			return false;
+		}));
 
-		do $server->receive(function($msg) use (&$ticks, &$tocks) {
-			$tocks += intval($msg);
-			$ticks--;
-		});
-
-		while ($ticks > 0);
-
-		$this->assertEquals(5, $tocks);
-
+		$this->assertEquals($sent, $received);
 	}
 
 }

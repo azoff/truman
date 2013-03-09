@@ -24,4 +24,10 @@ class Truman_Buck_Test extends PHPUnit_Framework_TestCase {
 		$this->assertInstanceOf('Truman_Exception', $error);
 	}
 
+	public function testDedupe() {
+		$buck1 = new Truman_Buck();
+		$buck2 = new Truman_Buck();
+		$this->assertEquals($buck1->getUUID(), $buck2->getUUID());
+	}
+
 }

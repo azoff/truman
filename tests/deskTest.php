@@ -56,29 +56,27 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testOutput() {
 		$test = $this;
-		$buck = new Truman_Buck('phpinfo');
+		$buck = new Truman_Buck('phpcredits');
 		$desk = new Truman_Desk();
 		$desk->enqueueBuck($buck);
 		$desk->start(function(Truman_Result $result) use ($buck, $test) {
 			$test->assertInstanceOf('stdClass', $data = $result->data());
 			$test->assertObjectHasAttribute('output', $data = $result->data());
-			$test->assertContains('phpinfo', $data->output);
+			$test->assertContains('PHP Credits', $data->output);
 			return false;
 		});
 	}
 
-	public function testInboundSocket() {
-
+	public function testBuckSocket() {
 		$test        = $this;
-		$server_addr = '0.0.0.0:12345';
-		$desk_opts   = array('inbound' => $server_addr);
-		$socket_opts = array('force_mode' => Truman_Socket::MODE_CLIENT);
+		$desk_opts   = array('buck_port' => 12345);
+		$socket_opts = array('port' => 12345, 'force_mode' => Truman_Socket::MODE_CLIENT);
 
 		$buck = new Truman_Buck('usleep', array(200));
 		$desk = new Truman_Desk($desk_opts);
-		$client = new Truman_Socket($server_addr, $socket_opts);
+		$client = new Truman_Socket($socket_opts);
 
-		$client->send(serialize($buck));
+		$this->assertTrue($client->sendBuck($buck));
 
 		$desk->start(function(Truman_Result $result) use ($buck, $test) {
 			$test->assertInstanceOf('stdClass', $data = $result->data());
@@ -86,18 +84,14 @@ class Truman_Desk_Test extends PHPUnit_Framework_TestCase {
 			$test->assertEquals($buck->invoke(), $data->retval);
 			return false;
 		});
-
 	}
 
-	public function testSignal() {
-		$results = array();
+	public function testStop() {
 		$desk    = new Truman_Desk();
-		$signal  = new Truman_Signal();
-		$desk->enqueueBuck($signal);
-		$desk->start(function(Truman_Result $result) use (&$results) {
-			$results[] = $result;
+		$desk->enqueueBuck(new Truman_Buck('phpcredits'));
+		$desk->start(function(Truman_Result $result, Truman_Desk $desk) {
+			$desk->stop();
 		});
-		$this->assertEmpty($results);
 	}
 
 }

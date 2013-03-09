@@ -3,8 +3,10 @@
 function execute(Truman_Buck $buck) {
 	ob_start();
 	@trigger_error('');
+	$_SERVER['buck'] = $buck;
+	$data['pid']     = PID;
 	$data['buck']    = $buck;
-	$data['runtime'] = -microtime(true);
+	$data['runtime'] = -microtime(1);
 	try {
 		$data['retval'] = @$buck->invoke();
 	} catch (Exception $ex) {
@@ -16,23 +18,25 @@ function execute(Truman_Buck $buck) {
 	} if ($output = ob_get_clean()) {
 		$data['output'] = $output;
 	}
-	$data['runtime'] += microtime(true);
+	$data['runtime'] += microtime(1);
 	$result = Truman_Result::newInstance(
 		isset($data['retval']) && $data['retval'],
 		(object) $data
 	);
-	return $result;
+	unset($_SERVER['buck']);
+	$xml = $result->asXML();
+	print "{$xml}\n";
 }
 
 function tick(array $inputs) {
 
-	if (!@stream_select($inputs, $i, $j, 1))
+	if (!stream_select($inputs, $i, $j, 1))
 		return true;
 
 	$input = trim(fgets($inputs[0]));
-	$buck  = @unserialize($input);
+	$buck  = unserialize($input);
 	if ($buck instanceof Truman_Buck)
-		echo execute($buck)->asXML() . "\n";
+		execute($buck);
 	else
 		error_log("Huh? '{$input}' is not a serialize()'d Truman_Buck");
 
@@ -42,7 +46,9 @@ function tick(array $inputs) {
 
 function setup_process() {
 	declare(ticks = 1);
+	define('PID', getmypid());
 	ini_set('error_log', false);
+	ini_set('display_errors', true);
 }
 
 function require_all(array $include_paths) {
