@@ -1,13 +1,13 @@
 <? require_once dirname(__DIR__) . '/autoload.php';
 
-class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
+class TrumanSocket_Test extends PHPUnit_Framework_TestCase {
 
 	public function testSendReceive() {
 		$message = 'hello world!';
-		$server = new Truman_Socket(array('port' => 12345));
-		$client = new Truman_Socket(array(
+		$server = new TrumanSocket(array('port' => 12345));
+		$client = new TrumanSocket(array(
 			'port'       => 12345,
-			'force_mode' => Truman_Socket::MODE_CLIENT
+			'force_mode' => TrumanSocket::MODE_CLIENT
 		));
 		$this->assertEquals(strlen($message), $client->send($message, null, 5));
 		$this->assertTrue($server->receive()); // accept the connection
@@ -15,11 +15,11 @@ class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testSendBuck() {
-		$buck = new Truman_Buck();
-		$server = new Truman_Socket(array('port' => 12345));
-		$client = new Truman_Socket(array(
+		$buck = new TrumanBuck();
+		$server = new TrumanSocket(array('port' => 12345));
+		$client = new TrumanSocket(array(
 			'port'       => 12345,
-			'force_mode' => Truman_Socket::MODE_CLIENT
+			'force_mode' => TrumanSocket::MODE_CLIENT
 		));
 		$this->assertTrue($client->sendBuck($buck, null, 5));
 		$this->assertTrue($server->receive()); // accept the connection
@@ -29,10 +29,10 @@ class Truman_Socket_Test extends PHPUnit_Framework_TestCase {
 
 	public function testCallback() {
 
-		$server = new Truman_Socket(array('port' => 12345));
-		$client = new Truman_Socket(array(
+		$server = new TrumanSocket(array('port' => 12345));
+		$client = new TrumanSocket(array(
 			'port'       => 12345,
-			'force_mode' => Truman_Socket::MODE_CLIENT
+			'force_mode' => TrumanSocket::MODE_CLIENT
 		));
 
 		$client->send($sent = 'hello world!');

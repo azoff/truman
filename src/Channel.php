@@ -1,6 +1,6 @@
 <?
 
-class Truman_Channel {
+class TrumanChannel {
 
 	private $count;
 	private $targets;
@@ -18,7 +18,7 @@ class Truman_Channel {
 		$this->count++;
 	}
 
-	public function getTarget(Truman_Buck $buck) {
+	public function getTarget(TrumanBuck $buck) {
 		$hash  = abs(crc32($buck->getUUID()));
 		$index = $hash % $this->count;
 		return $this->targets[$index];

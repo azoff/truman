@@ -1,6 +1,6 @@
 <?
 
-class Truman_Desk {
+class TrumanDesk {
 
 	const STATE_WAITING = 'waiting';
 	const STATE_RUNNING = 'running';
@@ -50,12 +50,12 @@ class Truman_Desk {
 		$this->waiting  = new SplPriorityQueue();
 		$this->tracking = array();
 
-		$this->buck_socket = new Truman_Socket(array(
+		$this->buck_socket = new TrumanSocket(array(
 			'port' => $options['buck_port']
 		));
 
 		if (strlen($sig = $options['client_signature']))
-			$this->client = Truman_Client::fromSignature($sig);
+			$this->client = TrumanClient::fromSignature($sig);
 
 		$this->log_drawer_errors  = (bool) $options['log_drawer_errors'];
 		$this->log_socket_errors  = (bool) $options['log_socket_errors'];
@@ -89,7 +89,7 @@ class Truman_Desk {
 		return array_keys($this->processes);
 	}
 
-	public function enqueueBuck(Truman_Buck $buck) {
+	public function enqueueBuck(TrumanBuck $buck) {
 		$uuid = $buck->getUUID();
 		if (!array_key_exists($uuid, $this->tracking)) {
 			$this->tracking[$uuid] = self::STATE_WAITING;
@@ -186,10 +186,10 @@ class Truman_Desk {
 		$desk = $this;
 		$this->buck_socket->receive(function($serialized) use (&$desk, &$buck) {
 			$buck = @unserialize($serialized);
-			if ($buck instanceof Truman_Buck)
+			if ($buck instanceof TrumanBuck)
 				$desk->enqueueBuck($buck);
 			else if ($this->log_socket_errors)
-				error_log("{$this->buck_socket}, '{$serialized}' is not a serialize()'d Truman_Buck");
+				error_log("{$this->buck_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
 		});
 		return $buck;
 	}
@@ -215,9 +215,9 @@ class Truman_Desk {
 			$key = array_pop(array_keys($streams, $input));
 
 			try {
-				$result = new Truman_Result($xml);
+				$result = new TrumanResult($xml);
 			} catch(Exception $ex) {
-				$result = Truman_Result::newInstance(false, (object) array(
+				$result = TrumanResult::newInstance(false, (object) array(
 					'error' => $xml
 				));
 			}
@@ -252,7 +252,7 @@ class Truman_Desk {
 
 	}
 
-	public function rerouteBuck(Truman_Buck $buck) {
+	public function rerouteBuck(TrumanBuck $buck) {
 
 		if ($this->log_client_reroute) {
 			$socket = $this->client->getSocket($buck);
@@ -266,7 +266,7 @@ class Truman_Desk {
 
 	}
 
-	private function sendBuckToStreams(Truman_Buck $buck, array $streams) {
+	private function sendBuckToStreams(TrumanBuck $buck, array $streams) {
 
 		if (!stream_select($i, $outputs = $streams, $j, 0))
 			return null;
@@ -297,7 +297,7 @@ class Truman_Desk {
 		if (is_null($callback))
 			$callback = function() { return true; };
 		else if (!is_callable($callback))
-			Truman_Exception::throwNew($this, 'Invalid callback');
+			TrumanException::throwNew($this, 'Invalid callback');
 		$this->continue = true;
 		do {
 			$this->tick($in, $out, $results);
@@ -321,7 +321,7 @@ class Truman_Desk {
 		);
 
 		if (!is_resource($process))
-			Truman_Exception::throwNew($this, 'Unable to open drawer');
+			TrumanException::throwNew($this, 'Unable to open drawer');
 
 		// get shell PID
 		$status = proc_get_status($process);
@@ -330,17 +330,17 @@ class Truman_Desk {
 		$key = "drawer.php<{$shell_pid}";
 
 		if (!is_resource($stdin = $streams[self::STDIN]))
-			Truman_Exception::throwNew($this, "{$key}>, Unable to write input");
+			TrumanException::throwNew($this, "{$key}>, Unable to write input");
 		if (!is_resource($stdout = $streams[self::STDOUT]))
-			Truman_Exception::throwNew($this, "{$key}>, Unable to read output");
+			TrumanException::throwNew($this, "{$key}>, Unable to read output");
 		if (!is_resource($stderr = $streams[self::STDERR]))
-			Truman_Exception::throwNew($this, "{$key}>, Unable to read errors");
+			TrumanException::throwNew($this, "{$key}>, Unable to read errors");
 
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 
 		// get php PID
-		$getmypid = new Truman_Buck();
+		$getmypid = new TrumanBuck();
 		do $buck = $this->sendBuckToStreams($getmypid, array($stdin));
 		while (is_null($buck));
 		do $result = $this->receiveResultFromStreams(array($stdout));
@@ -358,7 +358,7 @@ class Truman_Desk {
 
 	}
 
-	public function updateClient(Truman_Buck $buck) {
+	public function updateClient(TrumanBuck $buck) {
 
 		if (!$buck->hasClientSignature())
 			return null;

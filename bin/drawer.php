@@ -1,6 +1,6 @@
 <? require_once dirname(__DIR__).'/autoload.php';
 
-function execute(Truman_Buck $buck) {
+function execute(TrumanBuck $buck) {
 	ob_start();
 	@trigger_error('');
 	$_SERVER['buck'] = $buck;
@@ -19,7 +19,7 @@ function execute(Truman_Buck $buck) {
 		$data['output'] = $output;
 	}
 	$data['runtime'] += microtime(1);
-	$result = Truman_Result::newInstance(
+	$result = TrumanResult::newInstance(
 		isset($data['retval']) && $data['retval'],
 		(object) $data
 	);
@@ -35,10 +35,10 @@ function tick(array $inputs) {
 
 	$input = trim(fgets($inputs[0]));
 	$buck  = unserialize($input);
-	if ($buck instanceof Truman_Buck)
+	if ($buck instanceof TrumanBuck)
 		execute($buck);
 	else
-		error_log("Huh? '{$input}' is not a serialize()'d Truman_Buck");
+		error_log("Huh? '{$input}' is not a serialize()'d TrumanBuck");
 
 	return true;
 

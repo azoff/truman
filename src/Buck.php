@@ -1,6 +1,6 @@
 <?
 
-class Truman_Buck {
+class TrumanBuck {
 
 	const CALLABLE_NOOP = '__NOOP__';
 
@@ -31,7 +31,7 @@ class Truman_Buck {
 		$options += self::$_DEFAULT_OPTIONS;
 
 		if (!is_callable($callable, true, $callable_name))
-			Truman_Exception::throwNew($this, 'Invalid callable passed into '.__METHOD__);
+			TrumanException::throwNew($this, 'Invalid callable passed into '.__METHOD__);
 
 		$this->args   = $args;
 		$this->kwargs = (bool) array_filter(array_keys($args), 'is_string');
@@ -62,7 +62,7 @@ class Truman_Buck {
 
 	public function getClient() {
 		if (strlen($sig = $this->getClientSignature()))
-			return Truman_Client::fromSignature($sig);
+			return TrumanClient::fromSignature($sig);
 		return null;
 	}
 
@@ -126,7 +126,7 @@ class Truman_Buck {
 
 		} catch(ReflectionException $ex) {
 
-			Truman_Exception::throwNew($this, "Unable to invoke '{$this->callable}'", $ex);
+			TrumanException::throwNew($this, "Unable to invoke '{$this->callable}'", $ex);
 
 		}
 

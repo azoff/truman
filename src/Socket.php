@@ -1,6 +1,6 @@
 <?
 
-class Truman_Socket {
+class TrumanSocket {
 
 	const MODE_SERVER = 2;
 	const MODE_CLIENT = 4;
@@ -213,7 +213,7 @@ class Truman_Socket {
 		$size_limit = $this->options['size_limit'];
 
 		if ($expected_bytes > $size_limit)
-			Truman_Exception::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
+			TrumanException::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
 
 		$actual_bytes = @socket_write($write[0], $message, $expected_bytes);
 
@@ -229,7 +229,7 @@ class Truman_Socket {
 
 	}
 
-	public function sendBuck(Truman_Buck $buck, $socket = null, $timeout = 0) {
+	public function sendBuck(TrumanBuck $buck, $socket = null, $timeout = 0) {
 		$expected = strlen($message = serialize($buck));
 		$actual = $this->send($message, $socket, $timeout);
 		return $expected === $actual;
@@ -247,7 +247,7 @@ class Truman_Socket {
 		$error = socket_strerror($error_code);
 		$msg = "{$msg}. {$error}";
 
-		Truman_Exception::throwNew($this, $msg);
+		TrumanException::throwNew($this, $msg);
 
 	}
 

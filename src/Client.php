@@ -1,6 +1,6 @@
 <?
 
-class Truman_Client {
+class TrumanClient {
 
 	const TIMEOUT_DEFAULT = 5;
 
@@ -28,7 +28,7 @@ class Truman_Client {
 		if (!is_array($desk_spec))
 			$desk_spec = parse_url($desk_spec);
 		if (!isset($desk_spec['channels']))
-			$desk_spec['channels'] = array(Truman_Buck::CHANNEL_DEFAULT);
+			$desk_spec['channels'] = array(TrumanBuck::CHANNEL_DEFAULT);
 		if (!is_array($channels = $desk_spec['channels']))
 			$channels = array($channels);
 
@@ -37,7 +37,7 @@ class Truman_Client {
 
 		foreach ($channels as $channel) {
 			if (!isset($this->channels[$channel]))
-				$this->channels[$channel] = new Truman_Channel($target);
+				$this->channels[$channel] = new TrumanChannel($target);
 			else
 				$this->channels[$channel]->addTarget($target);
 		}
@@ -61,7 +61,7 @@ class Truman_Client {
 		return $this->signature;
 	}
 
-	public function getSocket(Truman_Buck $buck) {
+	public function getSocket(TrumanBuck $buck) {
 		$channel_name = $buck->getChannel();
 		$channel      = $this->channels[$channel_name];
 		$target       = $channel->getTarget($buck);
@@ -74,10 +74,10 @@ class Truman_Client {
 		return $this->timestamp;
 	}
 
-	public function isLocalTarget(Truman_Buck $buck) {
+	public function isLocalTarget(TrumanBuck $buck) {
 		$socket = $this->getSocket($buck);
 		$desk_spec = $socket->getHostSpec();
-		if (Truman_Socket::isLocal($desk_spec))
+		if (TrumanSocket::isLocal($desk_spec))
 			return true;
 		$ip_address = $desk_spec['host'];
 		if ($ip_address === self::localIpAddress())
@@ -88,21 +88,21 @@ class Truman_Client {
 	}
 
 	public function notifyDesks() {
-		$buck = new Truman_Buck(Truman_Buck::CALLABLE_NOOP, array(
+		$buck = new TrumanBuck(TrumanBuck::CALLABLE_NOOP, array(
 			'client_signature' => $this->getSignature(),
-			'priority'         => Truman_Buck::PRIORITY_URGENT
+			'priority'         => TrumanBuck::PRIORITY_URGENT
 		));
 		$message = serialize($buck);
 		$expected = strlen($message);
 		foreach ($this->desk_specs as $target => $desk_spec) {
 			$socket = self::createOrGetSocket($target, $desk_spec);
 			if ($expected !== $socket->send($message, null, 5))
-				Truman_Exception::throwNew($this, "unable to notify {$socket} about new client signature");
+				TrumanException::throwNew($this, "unable to notify {$socket} about new client signature");
 		}
 		$this->notified = true;
 	}
 
-	public function send(Truman_Buck $buck) {
+	public function send(TrumanBuck $buck) {
 
 		if (!$this->notified)
 			$this->notifyDesks();
@@ -110,7 +110,7 @@ class Truman_Client {
 		$socket = $this->getSocket($buck);
 		$timeout = isset($desk_spec['timeout']) ? $desk_spec['timeout'] : self::TIMEOUT_DEFAULT;
 		if (!$socket->sendBuck($buck, null, $timeout))
-			Truman_Exception::throwNew($this, "Unable to send {$buck} to {$socket}");
+			TrumanException::throwNew($this, "Unable to send {$buck} to {$socket}");
 	}
 
 	private function updateInternals() {
@@ -123,8 +123,8 @@ class Truman_Client {
 
 	public static function createOrGetSocket($target, $desk_spec) {
 		if (!isset(self::$sockets[$target]))
-			self::$sockets[$target] = new Truman_Socket($desk_spec, array(
-				'force_mode' => Truman_Socket::MODE_CLIENT
+			self::$sockets[$target] = new TrumanSocket($desk_spec, array(
+				'force_mode' => TrumanSocket::MODE_CLIENT
 			));
 		return self::$sockets[$target];
 	}
