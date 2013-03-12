@@ -31,7 +31,7 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	public function testException() {
 		$test = $this;
 		$buck = new TrumanBuck('TrumanException::throwNew', array('test', 'test'));
-		$desk = new TrumanDesk(array('log_drawer_errors' => false));
+		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
 		$desk->start(function(TrumanResult $result) use ($buck, $test) {
 			$test->assertInstanceOf('stdClass', $data = $result->data());
@@ -44,7 +44,7 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	public function testError() {
 		$test = $this;
 		$buck = new TrumanBuck('fopen');
-		$desk = new TrumanDesk(array('log_drawer_errors' => false));
+		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
 		$desk->start(function(TrumanResult $result) use ($buck, $test) {
 			$test->assertInstanceOf('stdClass', $data = $result->data());

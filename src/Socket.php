@@ -114,26 +114,20 @@ class TrumanSocket {
 		if (!is_resource($socket))
 			return false;
 
-		$key = (string) $socket;
-		if (!array_key_exists($key, $this->sockets))
-			return false;
-
 		@socket_close($socket);
 
-		unset($this->sockets[$key]);
+		$key = (string) $socket;
+		if (array_key_exists($key, $this->sockets))
+			unset($this->sockets[$key]);
 
 		return true;
 
 	}
 
 	public function getHostSpec() {
-		$host = $port = null;
-		if ($this->sockets)
-			socket_getpeername($this->connection, $host, $port);
-		return array(
-			'host' => $host ?: $this->options['host'],
-			'port' => $port ?: $this->options['port']
-		);
+		$host = $this->options['host'];
+		$port = $this->options['port'];
+		return array('host' => $host, 'port' => $port);
 	}
 
 	public function open($socket) {

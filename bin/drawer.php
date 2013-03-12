@@ -47,8 +47,6 @@ function tick(array $inputs) {
 function setup_process() {
 	declare(ticks = 1);
 	define('PID', getmypid());
-	ini_set('error_log', false);
-	ini_set('display_errors', true);
 }
 
 function require_all(array $include_paths) {

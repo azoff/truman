@@ -34,7 +34,7 @@ class TrumanBuck {
 			TrumanException::throwNew($this, 'Invalid callable passed into '.__METHOD__);
 
 		$this->args   = $args;
-		$this->kwargs = (bool) array_filter(array_keys($args), 'is_string');
+		$this->kwargs = TrumanUtil::isKeyedArray($args);
 
 		$this->callable   = $options['allow_closures'] ? $callable : $callable_name;
 		$this->priority   = (int) $options['priority'];

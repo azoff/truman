@@ -24,6 +24,7 @@ class TrumanDesk {
 	private $log_client_updates;
 	private $log_client_reroute;
 	private $log_dropped_bucks;
+	private $log_tick_work;
 
 	private static $_DESCRIPTORS = array(
 		array('pipe', 'r'),
@@ -32,15 +33,16 @@ class TrumanDesk {
 	);
 
 	private static $_DEFAULT_OPTIONS = array(
-		'client_signature'  => '',
-		'spawn'             => 3,
-		'include'           => array(),
-		'buck_port'         => 0,
-		'log_drawer_errors' => true,
-		'log_socket_errors' => true,
+		'client_signature'   => '',
+		'spawn'              => 3,
+		'include'            => array(),
+		'buck_port'          => 0,
+		'log_drawer_errors'  => true,
+		'log_socket_errors'  => true,
 		'log_client_updates' => true,
 		'log_client_reroute' => true,
-		'log_dropped_bucks' => true
+		'log_dropped_bucks'  => true,
+		'log_tick_work'      => true
 	);
 
 	public function __construct(array $options = array()) {
@@ -62,6 +64,7 @@ class TrumanDesk {
 		$this->log_client_updates = (bool) $options['log_client_updates'];
 		$this->log_client_reroute = (bool) $options['log_client_reroute'];
 		$this->log_dropped_bucks  = (bool) $options['log_dropped_bucks'];
+		$this->log_tick_work      = (bool) $options['log_tick_work'];
 
 		if (!is_array($includes = $options['include']))
 			$includes = array($includes);
@@ -77,8 +80,14 @@ class TrumanDesk {
 
 	public function __destruct() {
 		$this->stop();
-		foreach ($this->drawerKeys() as $key)
-			$this->killDrawer($key);
+		unset($this->buck_socket);
+		if (count($this->processes))
+			foreach ($this->drawerKeys() as $key)
+				$this->killDrawer($key);
+	}
+
+	public function __toString() {
+		return __CLASS__."<{$this->buck_socket}>";
 	}
 
 	public function drawerCount() {
@@ -95,8 +104,12 @@ class TrumanDesk {
 			$this->tracking[$uuid] = self::STATE_WAITING;
 			$this->waiting->insert($buck, $buck->getPriority());
 		} else if ($this->log_dropped_bucks) {
-			error_log("dropping {$buck} because it is already in the queue");
+			error_log("{$this} dropping {$buck} because it is already in the queue");
 		}
+	}
+
+	public function getClient() {
+		return $this->client;
 	}
 
 	public function isChildless($key) {
@@ -139,14 +152,11 @@ class TrumanDesk {
 		$buck = $this->waiting->current();
 
 		if ($buck->hasClientSignature())
-			$this->updateClient($buck);
-
-		if ($buck->isNoop())
-			return $this->waiting->extract();
+			$this->updateClient($buck->getClient());
 
 		// if re-route or sending to stream fails, return null
-		if ($this->client &&
-			!$this->client->isLocalTarget($buck) &&
+		if (!$buck->isNoop() && $this->getClient() &&
+			!$this->getClient()->isLocalTarget($buck) &&
 			!$this->rerouteBuck($buck) ||
 			!$this->sendBuckToStreams($buck, $this->stdins))
 			return null;
@@ -167,10 +177,10 @@ class TrumanDesk {
 		foreach ($this->drawerKeys() as $key) {
 			if ($respawn = $this->isChildless($key)) {
 				if ($this->log_drawer_errors)
-					error_log("{$key} is childless, respawning process...");
+					error_log("{$this} {$key} is childless, respawning process...");
 			} else if ($respawn = $this->isOrphaned($key)) {
 				if ($this->log_drawer_errors)
-					error_log("{$key} is orphaned, respawning process...");
+					error_log("{$this} {$key} is orphaned, respawning process...");
 			}
 			if ($respawn) {
 				$this->killDrawer($key);
@@ -189,28 +199,30 @@ class TrumanDesk {
 			if ($buck instanceof TrumanBuck)
 				$desk->enqueueBuck($buck);
 			else if ($this->log_socket_errors)
-				error_log("{$this->buck_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
+				error_log("{$this} {$this->buck_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
 		});
 		return $buck;
 	}
 
-	public function receiveResult() {
-		if (!is_null($result = $this->receiveResultFromStreams($this->stderrs)))
+	public function receiveResult($timeout = 0) {
+		if (!is_null($result = $this->receiveResultFromStreams($this->stderrs, $timeout)))
 			return $result;
-		if (!is_null($result = $this->receiveResultFromStreams($this->stdouts)))
+		if (!is_null($result = $this->receiveResultFromStreams($this->stdouts, $timeout)))
 			return $result;
 		return null;
 	}
 
-	private function receiveResultFromStreams(array $streams) {
+	private function receiveResultFromStreams(array $streams, $timeout = 0) {
 
-		if (!stream_select($inputs = $streams, $i, $j, 0))
+		if (!($r = stream_select($inputs = $streams, $i, $j, $timeout)))
 			return null;
 
 		foreach ($inputs as $input) {
 
-			if (!strlen($xml = trim(fgets($input))))
+			if (!strlen($xml = trim(fgets($input)))) {
+				error_log("result: {$xml}");
 				continue;
+			}
 
 			$key = array_pop(array_keys($streams, $input));
 
@@ -228,14 +240,14 @@ class TrumanDesk {
 				if ($data) {
 					if (isset($data->error)) {
 						if (is_array($data->error))
-							error_log("{$key}, received error with message '{$data->error['message']}' in {$data->error['file']}:{$data->error['line']}");
+							error_log("{$this} {$key}, received error with message '{$data->error['message']}' in {$data->error['file']}:{$data->error['line']}");
 						else
-							error_log("{$key}, received error with message '{$data->error}'");
+							error_log("{$this} {$key}, received error with message '{$data->error}'");
 					}
 					if (isset($data->exception))
-						error_log("{$key}, received {$data->exception}");
+						error_log("{$this} {$key}, received {$data->exception}");
 				} else {
-					error_log("{$key}, received empty result data");
+					error_log("{$this} {$key}, received empty result data");
 				}
 			}
 
@@ -255,20 +267,20 @@ class TrumanDesk {
 	public function rerouteBuck(TrumanBuck $buck) {
 
 		if ($this->log_client_reroute) {
-			$socket = $this->client->getSocket($buck);
-			error_log("rerouting {$buck} to {$socket}");
+			$socket = $this->getClient()->getSocket($buck);
+			error_log("{$this} rerouting {$buck} to {$socket}");
 		}
 
-		if (!$this->client->send($buck))
+		if (!$this->getClient()->send($buck))
 			return null;
 
 		return $buck;
 
 	}
 
-	private function sendBuckToStreams(TrumanBuck $buck, array $streams) {
+	private function sendBuckToStreams(TrumanBuck $buck, array $streams, $timeout = 0) {
 
-		if (!stream_select($i, $outputs = $streams, $j, 0))
+		if (!stream_select($i, $outputs = $streams, $j, $timeout))
 			return null;
 
 		foreach ($outputs as $output) {
@@ -280,7 +292,7 @@ class TrumanDesk {
 			if ($actual !== $expected) {
 				if ($this->log_drawer_errors){
 					$key = array_pop(array_keys($streams, $output));
-					error_log("{$key}, unable to write {$buck}");
+					error_log("{$this} {$key}, unable to write {$buck}");
 				}
 				continue;
 			}
@@ -299,13 +311,8 @@ class TrumanDesk {
 		else if (!is_callable($callback))
 			TrumanException::throwNew($this, 'Invalid callback');
 		$this->continue = true;
-		do {
-			$this->tick($in, $out, $results);
-			foreach($results as $result) {
-				if ($callback($result, $this) === false)
-					break(2);
-			}
-		} while($this->continue);
+		do $continue = $this->tick($callback);
+		while($continue && $this->continue);
 	}
 
 	public function stop() {
@@ -341,10 +348,10 @@ class TrumanDesk {
 
 		// get php PID
 		$getmypid = new TrumanBuck();
-		do $buck = $this->sendBuckToStreams($getmypid, array($stdin));
-		while (is_null($buck));
-		do $result = $this->receiveResultFromStreams(array($stdout));
-		while(is_null($result));
+		if (is_null($buck = $this->sendBuckToStreams($getmypid, array($stdin), 5)))
+			TrumanException::throwNew($this, "{$key}>, Unable to write {$buck}");
+		if (is_null($result = $this->receiveResultFromStreams(array($stdout), 5)))
+			TrumanException::throwNew($this, "{$key}>, Unable to read result");
 		$php_pid = $result->data()->pid;
 
 		$key = "$key,{$php_pid}>";
@@ -358,40 +365,49 @@ class TrumanDesk {
 
 	}
 
-	public function updateClient(TrumanBuck $buck) {
+	public function updateClient(TrumanClient $client) {
 
-		if (!$buck->hasClientSignature())
-			return null;
-
-		if (!$this->client) {
-			$new_client = $buck->getClient();
-		} else if ($this->client->getSignature() !== $buck->getClientSignature()) {
-			$potential_client = $buck->getClient();
-			if ($this->client->getTimestamp() < $potential_client->getTimestamp())
-				$new_client = $potential_client;
+		if (!$this->getClient()) {
+			$new_client = $client;
+		} else if ($this->getClient()->getSignature() === $client->getSignature()) {
+			if ($this->log_client_updates)
+				error_log("{$this} ignoring client update because signatures match; against {$client}");
+		} else if ($client->getTimestamp() <= $this->getClient()->getTimestamp()) {
+			if ($this->log_client_updates)
+				error_log("{$this} ignoring client update because local client is newer; against {$client}");
+		} else {
+			$new_client = $client;
 		}
 
 		if (!isset($new_client))
 			return null;
 
-		if ($this->log_client_updates) {
-			$signature = $new_client->getSignature();
-			error_log("updating client, {$signature}");
-		}
+		if ($this->log_client_updates)
+			error_log("{$this} updating client using {$client}");
 
 		return $this->client = $new_client;
 
 	}
 
-	public function tick(array &$received_bucks = null, array &$sent_bucks = null, array &$received_results = null) {
+	public function tick($callback) {
 		$this->reapDrawers();
-		$received_bucks = $sent_bucks = $received_results = array();
-		while(!is_null($buck = $this->receiveBuck()))
-			$received_bucks[] = $buck;
-		while(!is_null($buck = $this->processBuck()))
-			$sent_bucks[] = $buck;
-		while(!is_null($result = $this->receiveResult()))
-			$received_results[] = $result;
+		do {
+			if ($still = !is_null($received_buck = $this->receiveBuck())) {
+				if ($this->log_tick_work)
+					error_log("{$this} received {$received_buck}");
+			}
+			if ($doing = !is_null($processed_buck = $this->processBuck())) {
+				if ($this->log_tick_work)
+					error_log("{$this} processed {$processed_buck}");
+			}
+			if ($work = !is_null($received_result = $this->receiveResult())) {
+				if ($this->log_tick_work)
+					error_log("{$this} received " . $received_result->__toString());
+				if ($callback($received_result, $this) === false)
+					return false;
+			}
+		} while ($still || $doing || $work);
+		return true;
 	}
 
 }

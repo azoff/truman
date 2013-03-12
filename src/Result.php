@@ -3,6 +3,11 @@ class TrumanResult extends SimpleXMLElement {
 
 	const TAG_PREFIX = 'RESULT_';
 
+	public function __toString() {
+		$xml = $this->asXML();
+		return __CLASS__.$xml;
+	}
+
 	public function data() {
 		if (preg_match("#(RESULT_\w+)#", $this->asXML(), $matches))
 			return self::decode($matches[1]);
