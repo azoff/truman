@@ -87,7 +87,8 @@ class TrumanDesk {
 	}
 
 	public function __toString() {
-		return __CLASS__."<{$this->buck_socket}>";
+		$count = $this->drawerCount();
+		return __CLASS__."<buck:{$this->buck_socket}>[{$count}]";
 	}
 
 	public function drawerCount() {
@@ -408,6 +409,10 @@ class TrumanDesk {
 			}
 		} while ($still || $doing || $work);
 		return true;
+	}
+
+	public function waitingCount() {
+		return $this->waiting->count();
 	}
 
 }

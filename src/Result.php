@@ -4,8 +4,10 @@ class TrumanResult extends SimpleXMLElement {
 	const TAG_PREFIX = 'RESULT_';
 
 	public function __toString() {
-		$xml = $this->asXML();
-		return __CLASS__.$xml;
+		$data = $this->data();
+		$buck = ($data && isset($data->buck)) ? $data->buck : '(empty)';
+		$bool = $this ? 'passed' : 'failed';
+		return __CLASS__."<{$buck} => {$bool}>";
 	}
 
 	public function data() {
@@ -15,10 +17,11 @@ class TrumanResult extends SimpleXMLElement {
 	}
 
 	public function asXML($filename = null) {
-		$xml = parent::asXML();
+		$xml   = parent::asXML();
 		$parts = explode("\n", $xml);
 		$parts = array_filter($parts);
-		return array_pop($parts);
+		$xml   = array_pop($parts);
+		return "{$xml}\n";
 	}
 
 	public static function decode($tag_safe) {

@@ -25,8 +25,9 @@ class TrumanClient {
 	}
 
 	public function __toString() {
+		$count = $this->getDeskCount();
 		$sig = $this->getSignature();
-		return __CLASS__."<{$sig}>";
+		return __CLASS__."<{$sig}>[{$count}]";
 	}
 
 	public function addDeskSpec($desk_spec = null, $notify_desks = true) {
@@ -46,7 +47,7 @@ class TrumanClient {
 
 		foreach ($channels as $channel) {
 			if (!isset($this->channels[$channel]))
-				$this->channels[$channel] = new TrumanChannel($target);
+				$this->channels[$channel] = new TrumanChannel($channel, $target);
 			else
 				$this->channels[$channel]->addTarget($target);
 		}
@@ -125,7 +126,7 @@ class TrumanClient {
 		}
 	}
 
-	public function send(TrumanBuck $buck) {
+	public function sendBuck(TrumanBuck $buck) {
 		if (!$this->notified)
 			$this->notifyDesks();
 

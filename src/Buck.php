@@ -4,6 +4,8 @@ class TrumanBuck {
 
 	const CALLABLE_NOOP = '__NOOP__';
 
+	const CONTEXT_KEY = '__TRUMAN_CONTEXT__';
+
 	const CHANNEL_DEFAULT = 'default';
 
 	const PRIORITY_LOW     = 4096;
@@ -15,6 +17,7 @@ class TrumanBuck {
 	private $priority;
 	private $callable;
 	private $channel;
+	private $context;
 	private $client_signature;
 	private $kwargs;
 	private $args;
@@ -23,7 +26,8 @@ class TrumanBuck {
 		'priority'         => self::PRIORITY_MEDIUM,
 		'channel'          => self::CHANNEL_DEFAULT,
 		'allow_closures'   => false,
-		'client_signature' => ''
+		'client_signature' => '',
+		'context'          => '',
 	);
 
 	public function __construct($callable = self::CALLABLE_NOOP, array $args = array(), array $options = array()) {
@@ -43,6 +47,13 @@ class TrumanBuck {
 		$this->client_signature = $options['client_signature'];
 		$this->channel = $options['channel'];
 
+		if (strlen($options['context']))
+			$this->context = $options['context'];
+		else if ($envContext = self::getEnvContext())
+			$this->context = $envContext;
+		else
+			$this->context = $this->calculateSeed();
+
 	}
 
 	public function __toString() {
@@ -50,13 +61,20 @@ class TrumanBuck {
 		return __CLASS__."<{$uuid}>";
 	}
 
+	public function calculateSeed() {
+		$args = serialize($this->args);
+		return "{$this->callable}::{$args}";
+	}
+
 	private function calculateUUID() {
-		$seed  = $this->callable;
-		$seed .= implode(',', $this->args);
-		return md5($seed);
+		return md5($this->calculateSeed());
 	}
 
 	public function getChannel() {
+		return $this->channel;
+	}
+
+	public function getContext() {
 		return $this->channel;
 	}
 
@@ -132,6 +150,20 @@ class TrumanBuck {
 
 		return null;
 
+	}
+
+	public static function getEnvContext() {
+		if (!isset($_ENV[self::CONTEXT_KEY]) || !strlen($_ENV[self::CONTEXT_KEY]))
+			return null;
+		return $_ENV[self::CONTEXT_KEY];
+	}
+
+	public static function setEnvContext(TrumanBuck $buck) {
+		$_ENV[self::CONTEXT_KEY] = $buck->getContext();
+	}
+
+	public static function unsetEnvContext(TrumanBuck $buck) {
+		unset($_ENV[self::CONTEXT_KEY]);
 	}
 
 }

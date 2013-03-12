@@ -42,4 +42,45 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 	}
 
+	public function testChannels() {
+
+		$specs[] = array(
+			'port' => 12346,
+			'channels' => array('channelA', 'channelB')
+		);
+
+		$specs[] = array(
+			'port' => 12347,
+			'channels' => array('channelC')
+		);
+
+		$bucks[] = new TrumanBuck('foo', array(), array(
+			'channel' => $specs[0]['channels'][0]
+		));
+
+		$bucks[] = new TrumanBuck('bar', array(), array(
+			'channel' => $specs[0]['channels'][1]
+		));
+
+		$bucks[] = new TrumanBuck('poo', array(), array(
+			'channel' => $specs[1]['channels'][0]
+		));
+
+		foreach ($specs as $spec)
+			$desks[] = new TrumanDesk(array('buck_port' => $spec['port']));
+
+		$client = new TrumanClient($specs);
+
+		foreach ($bucks as $buck)
+			$client->sendBuck($buck);
+
+		foreach ($desks as $i => $desk) {
+			$expected = count($specs[$i]['channels']);
+			do if (!is_null($desk->receiveBuck()))
+				$expected--;
+			while($expected > 0);
+		}
+
+	}
+
 }

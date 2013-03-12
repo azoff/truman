@@ -1,9 +1,11 @@
 <? require_once dirname(__DIR__).'/autoload.php';
 
 function execute(TrumanBuck $buck) {
+
 	ob_start();
 	@trigger_error('');
-	$_SERVER['buck'] = $buck;
+	TrumanBuck::setEnvContext($buck);
+
 	$data['pid']     = PID;
 	$data['buck']    = $buck;
 	$data['runtime'] = -microtime(1);
@@ -13,19 +15,23 @@ function execute(TrumanBuck $buck) {
 		$data['exception'] = $ex;
 	}
 	$error = error_get_last();
-	if (strlen($error['message'])) {
+	if (strlen($error['message']))
 		$data['error'] = $error;
-	} if ($output = ob_get_clean()) {
+	if ($output = ob_get_clean())
 		$data['output'] = $output;
-	}
 	$data['runtime'] += microtime(1);
-	$result = TrumanResult::newInstance(
-		isset($data['retval']) && $data['retval'],
-		(object) $data
-	);
-	unset($_SERVER['buck']);
-	$xml = $result->asXML();
-	print "{$xml}\n";
+
+	TrumanBuck::unsetEnvContext($buck);
+
+	$passed = true;
+	$data   = (object) $data;
+	if (isset($data->exception) || isset($data->error))
+		$passed = false;
+	else if (isset($data->retval))
+		$passed = (bool) $data->retval;
+
+	print TrumanResult::newInstance($passed, $data)->asXML();
+
 }
 
 function tick(array $inputs) {
