@@ -5,7 +5,7 @@ class TrumanException_Test extends PHPUnit_Framework_TestCase {
 	public function testThrowNew() {
 		$error = null;
 		try {
-			TrumanException::throwNew($this, 'test');
+			TrumanException::throwNew(new TrumanBuck, 'test');
 		} catch(TrumanException $ex) {
 			$error = $ex;
 		}
