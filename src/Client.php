@@ -112,26 +112,25 @@ class TrumanClient {
 		));
 	}
 
-	public function notifyDesks() {
+	public function notifyDesks($timeout = 5) {
 		if (isset($this->notified) && !$this->notified) {
 			$buck = $this->newNotificationBuck();
 			$message = serialize($buck);
 			$expected = strlen($message);
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = self::createOrGetSocket($target, $desk_spec);
-				if ($expected !== $socket->send($message, null, 5))
+				if ($expected !== $socket->send($message, null, $timeout))
 					TrumanException::throwNew($this, "unable to notify {$socket} about new client signature");
 			}
 			$this->notified = true;
 		}
 	}
 
-	public function sendBuck(TrumanBuck $buck) {
+	public function sendBuck(TrumanBuck $buck, $timeout = 0) {
 		if (!$this->notified)
 			$this->notifyDesks();
 
 		$socket = $this->getSocket($buck);
-		$timeout = isset($desk_spec['timeout']) ? $desk_spec['timeout'] : self::TIMEOUT_DEFAULT;
 		if (!$socket->sendBuck($buck, null, $timeout))
 			TrumanException::throwNew($this, "Unable to send {$buck} to {$socket}");
 

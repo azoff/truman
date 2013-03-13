@@ -104,8 +104,10 @@ class TrumanDesk {
 		if (!array_key_exists($uuid, $this->tracking)) {
 			$this->tracking[$uuid] = self::STATE_WAITING;
 			$this->waiting->insert($buck, $buck->getPriority());
+			return $buck;
 		} else if ($this->log_dropped_bucks) {
 			error_log("{$this} dropping {$buck} because it is already in the queue");
+			return null;
 		}
 	}
 
@@ -145,7 +147,7 @@ class TrumanDesk {
 
 	}
 
-	public function processBuck() {
+	public function processBuck($timeout = 0) {
 
 		if ($this->waiting->isEmpty())
 			return null;
@@ -158,8 +160,8 @@ class TrumanDesk {
 		// if re-route or sending to stream fails, return null
 		if (!$buck->isNoop() && $this->getClient() &&
 			!$this->getClient()->isLocalTarget($buck) &&
-			!$this->rerouteBuck($buck) ||
-			!$this->sendBuckToStreams($buck, $this->stdins))
+			!$this->rerouteBuck($buck, $timeout) ||
+			!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
 
 		// otherwise, mark the job as running and remove it
@@ -193,24 +195,26 @@ class TrumanDesk {
 
 	}
 
-	public function receiveBuck() {
-		$desk = $this;
-		$this->buck_socket->receive(function($serialized) use (&$desk, &$buck) {
-			$buck = @unserialize($serialized);
-			if ($buck instanceof TrumanBuck)
-				$desk->enqueueBuck($buck);
-			else if ($this->log_socket_errors)
+	public function receiveBuck($timeout = 0) {
+
+		if (!strlen($serialized = $this->buck_socket->receive(null, $timeout)))
+			return null;
+
+		$buck = @unserialize($serialized);
+		if (!($buck instanceof TrumanBuck)) {
+			if ($this->log_socket_errors)
 				error_log("{$this} {$this->buck_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
-		});
-		return $buck;
+			return null;
+		}
+
+		return $this->enqueueBuck($buck);
+
 	}
 
 	public function receiveResult($timeout = 0) {
-		if (!is_null($result = $this->receiveResultFromStreams($this->stderrs, $timeout)))
-			return $result;
-		if (!is_null($result = $this->receiveResultFromStreams($this->stdouts, $timeout)))
-			return $result;
-		return null;
+		if (is_null($result = $this->receiveResultFromStreams($this->stderrs, $timeout)))
+			$result = $this->receiveResultFromStreams($this->stdouts, $timeout);
+		return $result;
 	}
 
 	private function receiveResultFromStreams(array $streams, $timeout = 0) {
@@ -265,14 +269,14 @@ class TrumanDesk {
 
 	}
 
-	public function rerouteBuck(TrumanBuck $buck) {
+	public function rerouteBuck(TrumanBuck $buck, $timeout = 0) {
 
 		if ($this->log_client_reroute) {
 			$socket = $this->getClient()->getSocket($buck);
 			error_log("{$this} rerouting {$buck} to {$socket}");
 		}
 
-		if (!$this->getClient()->send($buck))
+		if (!$this->getClient()->sendBuck($buck, $timeout))
 			return null;
 
 		return $buck;
@@ -390,25 +394,38 @@ class TrumanDesk {
 
 	}
 
-	public function tick($callback) {
+	public function tick($callback = null, $timeout = 0) {
+
 		$this->reapDrawers();
+
+		if (!is_callable($callback))
+			$received_results = array();
+
 		do {
-			if ($still = !is_null($received_buck = $this->receiveBuck())) {
+
+			if ($still = !is_null($received_buck = $this->receiveBuck($timeout))) {
 				if ($this->log_tick_work)
 					error_log("{$this} received {$received_buck}");
 			}
-			if ($doing = !is_null($processed_buck = $this->processBuck())) {
+
+			if ($doing = !is_null($processed_buck = $this->processBuck($timeout))) {
 				if ($this->log_tick_work)
 					error_log("{$this} processed {$processed_buck}");
 			}
-			if ($work = !is_null($received_result = $this->receiveResult())) {
+
+			if ($work = !is_null($received_result = $this->receiveResult($timeout))) {
 				if ($this->log_tick_work)
 					error_log("{$this} received " . $received_result->__toString());
-				if ($callback($received_result, $this) === false)
+				if (isset($received_results))
+					$received_results[] = $received_result;
+				else if ($callback($received_result, $this) === false)
 					return false;
 			}
+
 		} while ($still || $doing || $work);
-		return true;
+
+		return isset($received_results) ? $received_results : true;
+
 	}
 
 	public function waitingCount() {
