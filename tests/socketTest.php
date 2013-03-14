@@ -9,9 +9,8 @@ class TrumanSocket_Test extends PHPUnit_Framework_TestCase {
 			'port'       => 12345,
 			'force_mode' => TrumanSocket::MODE_CLIENT
 		));
-		$this->assertEquals(strlen($message), $client->send($message, null, 5));
-		$this->assertTrue($server->receive()); // accept the connection
-		$this->assertEquals($message, $server->receive()); // receive the value
+		$this->assertEquals(strlen($message), $client->send($message));
+		$this->assertEquals($message, $server->receive());
 	}
 
 	public function testSendBuck() {
@@ -21,28 +20,23 @@ class TrumanSocket_Test extends PHPUnit_Framework_TestCase {
 			'port'       => 12345,
 			'force_mode' => TrumanSocket::MODE_CLIENT
 		));
-		$this->assertTrue($client->sendBuck($buck, null, 5));
-		$this->assertTrue($server->receive()); // accept the connection
-		$received = unserialize($server->receive()); // receive the value
-		$this->assertEquals($buck, $received); // compare the unserialized buck
+		$this->assertTrue($client->sendBuck($buck));
+		$this->assertEquals(serialize($buck), $received = $server->receive());
+		$receivedBuck = unserialize($received);
+		$this->assertEquals($buck, $receivedBuck);
 	}
 
 	public function testCallback() {
-
 		$server = new TrumanSocket(array('port' => 12345));
 		$client = new TrumanSocket(array(
 			'port'       => 12345,
 			'force_mode' => TrumanSocket::MODE_CLIENT
 		));
-
-		$client->send($sent = 'hello world!');
-
-		while ($server->receive(function($message) use (&$received) {
-			$received = $message;
-			return false;
-		}));
-
-		$this->assertEquals($sent, $received);
+		$client->send('hello');
+		$result = $server->receive(function($message) {
+			return "{$message} world";
+		});
+		$this->assertEquals('hello world', $result);
 	}
 
 }

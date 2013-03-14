@@ -2,12 +2,18 @@
 
 class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 
+	public function stopOnResult($desk, $in, $out, $result) {
+		if (!is_null($result))
+			$desk->stop();
+		return $result;
+	}
+
 	public function testBuck() {
 		$buck = new TrumanBuck('max', array(1, 2));
 		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
-		$this->assertNotEmpty($results = $desk->tick(null, 1));
-		$this->assertInstanceOf('stdClass', $data = $results[0]->data());
+		$results = $desk->start(array($this, 'stopOnResult'));
+		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('buck', $data);
 		$this->assertEquals($buck, $data->buck);
 	}
@@ -16,8 +22,8 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 		$buck = new TrumanBuck('strlen', array('test'));
 		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
-		$this->assertNotEmpty($results = $desk->tick(null, 1));
-		$this->assertInstanceOf('stdClass', $data = $results[0]->data());
+		$results = $desk->start(array($this, 'stopOnResult'));
+		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($buck->invoke(), $data->retval);
 	}
@@ -26,8 +32,8 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 		$buck = new TrumanBuck('TrumanException::throwNew', array('test', 'test'));
 		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
-		$this->assertNotEmpty($results = $desk->tick(null, 1));
-		$this->assertInstanceOf('stdClass', $data = $results[0]->data());
+		$results = $desk->start(array($this, 'stopOnResult'));
+		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('exception', $data);
 		$this->assertInstanceOf('TrumanException', $data->exception);
 	}
@@ -36,8 +42,8 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 		$buck = new TrumanBuck('fopen');
 		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
-		$this->assertNotEmpty($results = $desk->tick(null, 1));
-		$this->assertInstanceOf('stdClass', $data = $results[0]->data());
+		$results = $desk->start(array($this, 'stopOnResult'));
+		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('error', $data);
 		$this->assertEquals(2, $data->error['type']);
 	}
@@ -46,8 +52,8 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 		$buck = new TrumanBuck('phpcredits');
 		$desk = new TrumanDesk();
 		$desk->enqueueBuck($buck);
-		$this->assertNotEmpty($results = $desk->tick(null, 1));
-		$this->assertInstanceOf('stdClass', $data = $results[0]->data());
+		$results = $desk->start(array($this, 'stopOnResult'));
+		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('output', $data);
 		$this->assertContains('PHP Credits', $data->output);
 	}
@@ -63,8 +69,8 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 
 		$this->assertTrue($client->sendBuck($buck));
 
-		$this->assertNotEmpty($results = $desk->tick(null, 1));
-		$this->assertInstanceOf('stdClass', $data = $results[0]->data());
+		$results = $desk->start(array($this, 'stopOnResult'));
+		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$test->assertObjectHasAttribute('retval', $data);
 		$test->assertEquals($buck->invoke(), $data->retval);
 	}
@@ -74,7 +80,7 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 		$desk = new TrumanDesk();
 		$desk->enqueueBuck(new TrumanBuck());
 		$desk->enqueueBuck(new TrumanBuck());
-		$desk->start(function(TrumanResult $result, TrumanDesk $desk) use (&$count) {
+		$desk->start(function(TrumanDesk $desk) use (&$count) {
 			$count++;
 			$desk->stop();
 		});

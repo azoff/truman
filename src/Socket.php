@@ -22,33 +22,33 @@ class TrumanSocket {
 
 	private $mode;
 	private $options;
-	private $connection;
-	private $sockets = array();
+	private $socket;
+	private $connections = array();
 
 	public function __construct(array $options = array()) {
 
 		$this->options = $options + self::$_DEFAULT_OPTIONS;
 
-		$this->connection = @socket_create(
+		$this->socket = @socket_create(
 			$this->options['socket_domain'],
 			$this->options['socket_type'],
 			$this->options['socket_protocol']
 		);
 
-		if ($this->connection === false)
+		if ($this->socket === false)
 			$this->throwError('Unable to create a socket resource');
 
 		if ($this->options['reuse_port']) {
 
 			$option_set = @socket_set_option(
-				$this->connection,
+				$this->socket,
 				SOL_SOCKET,
 				SO_REUSEADDR,
 				TRUE
 			);
 
 			if ($option_set === false)
-				$this->throwError('Unable to mark socket as reusable', $this->connection);
+				$this->throwError('Unable to mark socket as reusable', $this->socket);
 
 		}
 
@@ -58,25 +58,25 @@ class TrumanSocket {
 		if (self::isLocal($this->getHostSpec()) && $force_mode !== self::MODE_CLIENT) {
 
 			if ($this->options['nonblocking'])
-				if (@socket_set_nonblock($this->connection) === false);
-					$this->throwError('Unable to mark socket as non-blocking', $this->connection);
+				if (@socket_set_nonblock($this->socket) === false);
+					$this->throwError('Unable to mark socket as non-blocking', $this->socket);
 
 			$bound = @socket_bind(
-				$this->connection,
+				$this->socket,
 				$this->options['host'],
 				$this->options['port']
 			);
 
 			if ($bound === false)
-				$this->throwError("Unable to bind to {$this}", $this->connection);
+				$this->throwError("Unable to bind to {$this}", $this->socket);
 
 			$listening = @socket_listen(
-				$this->connection,
+				$this->socket,
 				$this->options['max_connections']
 			);
 
 			if ($listening === false)
-				$this->throwError("Unable to listen to {$this}", $this->connection);
+				$this->throwError("Unable to listen to {$this}", $this->socket);
 
 			$this->mode = self::MODE_SERVER;
 
@@ -84,24 +84,25 @@ class TrumanSocket {
 		} else {
 
 			$connected = @socket_connect(
-				$this->connection,
+				$this->socket,
 				$this->options['host'],
 				$this->options['port']
 			);
 
 			if ($connected === false)
-				$this->throwError("Unable to connect to {$this}", $this->connection);
+				$this->throwError("Unable to connect to {$this}", $this->socket);
 
 			$this->mode = self::MODE_CLIENT;
 
 		}
 
-		$this->open($this->connection);
-
 	}
 
 	public function __destruct() {
-		$this->close($this->connection);
+		if (@socket_close($this->socket) === false)
+			$this->throwError('Unable to close socket', $this->socket);
+		foreach ($this->connections as $connection)
+			$this->closeConnection($connection);
 	}
 
 	public function __toString() {
@@ -109,19 +110,51 @@ class TrumanSocket {
 		return __CLASS__."<{$spec['host']}:{$spec['port']}>";
 	}
 
-	public function close($socket) {
+	public function acceptConnection($timeout = 0) {
 
-		if (!is_resource($socket))
+		if ($this->mode !== self::MODE_SERVER)
 			return false;
 
-		@socket_close($socket);
+		$sockets = array($this->socket);
 
-		$key = (string) $socket;
-		if (array_key_exists($key, $this->sockets))
-			unset($this->sockets[$key]);
+		$ready = @socket_select($sockets, $i, $j, $timeout);
+
+		if ($ready === false)
+			$this->throwError('Unable to detect socket changes');
+
+		if ($ready <= 0)
+			return false;
+
+		$connection = @socket_accept($sockets[0]);
+
+		if ($connection === false)
+			$this->throwError('Unable to accept connection', $sockets[0]);
+
+		return $this->openConnection($connection);
+
+	}
+
+	public function closeConnection($connection) {
+
+		if (!is_resource($connection))
+			return false;
+
+		$address = $this->getConnectionAddress($connection);
+		if (!array_key_exists($address, $this->connections))
+			return false;
+
+		if (@socket_close($connection) === false)
+			$this->throwError('Unable to close connection', $connection);
+
+		unset($this->connections[$address]);
 
 		return true;
 
+	}
+
+	public function getConnectionAddress($connection) {
+		socket_getpeername($connection, $host, $port);
+		return "{$host}:{$port}";
 	}
 
 	public function getHostSpec() {
@@ -130,16 +163,17 @@ class TrumanSocket {
 		return array('host' => $host, 'port' => $port);
 	}
 
-	public function open($socket) {
+	public function openConnection($connection) {
 
-		if (!is_resource($socket))
+		if (!is_resource($connection))
 			return false;
 
-		$key = (string) $socket;
-		if (array_key_exists($key, $this->sockets))
+		$address = $this->getConnectionAddress($connection);
+
+		if (array_key_exists($address, $this->connections))
 			return false;
 
-		$this->sockets[$key] = $socket;
+		$this->connections[$address] = $connection;
 
 		return true;
 
@@ -147,7 +181,15 @@ class TrumanSocket {
 
 	public function receive($callback = null, $timeout = 0) {
 
-		$ready = @socket_select($read = $this->sockets, $i, $j, $timeout);
+		if ($this->mode === self::MODE_CLIENT) {
+			$connections = array($this->socket);
+		} else {
+			$this->acceptConnection($timeout);
+			if (!count($connections = $this->connections))
+				return false;
+		}
+
+		$ready = @socket_select($connections, $i, $j, $timeout);
 
 		if ($ready === false)
 			$this->throwError('Unable to detect socket changes');
@@ -155,53 +197,46 @@ class TrumanSocket {
 		if ($ready <= 0)
 			return false;
 
-		$continue = false;
 		$read_limit = $this->options['size_limit'];
 
-		foreach ($read as $socket) {
+		foreach ($connections as $connection) {
 
-			// this happens when a new connection arrives on our socket
-			if ($socket === $this->connection && $this->mode !== self::MODE_CLIENT) {
+			$message = socket_read($connection, $read_limit, PHP_NORMAL_READ);
 
-				$continue = $this->open(@socket_accept($this->connection));
+			// close out sockets that don't provide any data
+			if ($message === false) {
+				$this->closeConnection($connection);
 
+			// otherwise delegate interpretation of the data to the caller
 			} else {
-
-				$message = @socket_read($socket, $read_limit, PHP_NORMAL_READ);
-
-				// close out sockets that don't provide any data
-				if ($message === false) {
-					$this->close($socket);
-
-				// otherwise delegate interpretation of the data to the caller
-				} else {
-					$message = rtrim($message, $this->options['msg_delimiter']);
-					if (is_callable($callback))
-						return call_user_func($callback, $message, $this, $socket) !== false;
-					else
-						return $message;
-				}
-
+				$message = rtrim($message, $this->options['msg_delimiter']);
+				if (is_callable($callback))
+					return call_user_func($callback, $message, $this, $connection);
+				else
+					return $message;
 			}
+
 		}
 
-		return $continue;
+		return false;
 
 	}
 
-	public function send($message, $socket = null, $timeout = 0) {
+	public function send($message, $connection = null, $timeout = 0) {
 
-		$write = is_resource($socket) ? array($socket) : array($this->connection);
+		$connections = is_resource($connection) ? array($connection) : array($this->socket);
 
-		$ready = @socket_select($i, $write, $j, $timeout);
+		$ready = @socket_select($i, $connections, $j, $timeout);
 
 		if ($ready === false)
 			$this->throwError('Unable to detect socket changes');
 
-		if ($ready <= 0) return 0;
+		if ($ready <= 0)
+			return 0;
 
-		$delimeter = $this->options['msg_delimiter'];
-		$message   = rtrim($message, $delimeter) . $delimeter;
+		$connection = $connections[0];
+		$delimeter  = $this->options['msg_delimiter'];
+		$message    = rtrim($message, $delimeter) . $delimeter;
 
 		$expected_bytes = strlen($message);
 		$size_limit = $this->options['size_limit'];
@@ -209,17 +244,17 @@ class TrumanSocket {
 		if ($expected_bytes > $size_limit)
 			TrumanException::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
 
-		$actual_bytes = @socket_write($write[0], $message, $expected_bytes);
+		$actual_bytes = @socket_write($connection, $message, $expected_bytes);
 
 		if ($actual_bytes === false)
-			$this->throwError('Unable to write to socket', $socket);
+			$this->throwError('Unable to write to socket', $connection);
 
 		if ($actual_bytes >= $expected_bytes)
 			return $actual_bytes - 1;
 
 		// message truncated, need to retry
 		$message = substr($message, $actual_bytes);
-		return $actual_bytes - 1 + $this->send($message, $socket, $timeout);
+		return $actual_bytes - 1 + $this->send($message, $connection, $timeout);
 
 	}
 

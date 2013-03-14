@@ -6,7 +6,7 @@ class TrumanUtil {
 		return (bool) array_filter(array_keys($to_check), 'is_string');
 	}
 
-	public static function log($obj) {
+	public static function dump($obj) {
 		error_log(print_r($obj, true));
 	}
 

@@ -315,9 +315,11 @@ class TrumanDesk {
 			$callback = function() { return true; };
 		else if (!is_callable($callback))
 			TrumanException::throwNew($this, 'Invalid callback');
+		$cycles = array();
 		$this->continue = true;
-		do $continue = $this->tick($callback);
-		while($continue && $this->continue);
+		do $cycles = array_merge($cycles, $this->tick($callback));
+		while($this->continue);
+		return $cycles;
 	}
 
 	public function stop() {
@@ -398,33 +400,43 @@ class TrumanDesk {
 
 		$this->reapDrawers();
 
-		if (!is_callable($callback))
-			$received_results = array();
+		$cycles = array();
 
 		do {
+
+			$args = array($this);
 
 			if ($still = !is_null($received_buck = $this->receiveBuck($timeout))) {
 				if ($this->log_tick_work)
 					error_log("{$this} received {$received_buck}");
 			}
 
+			$args[] = $received_buck;
+
 			if ($doing = !is_null($processed_buck = $this->processBuck($timeout))) {
 				if ($this->log_tick_work)
 					error_log("{$this} processed {$processed_buck}");
 			}
 
+			$args[] = $processed_buck;
+
 			if ($work = !is_null($received_result = $this->receiveResult($timeout))) {
 				if ($this->log_tick_work)
 					error_log("{$this} received " . $received_result->__toString());
-				if (isset($received_results))
-					$received_results[] = $received_result;
-				else if ($callback($received_result, $this) === false)
-					return false;
 			}
 
-		} while ($still || $doing || $work);
+			$args[] = $received_result;
 
-		return isset($received_results) ? $received_results : true;
+			if ($continue = $still || $doing || $work) {
+				if (is_callable($callback))
+					$cycles[] = call_user_func_array($callback, $args);
+				else
+					$cycles[] = $args;
+			}
+
+		} while ($continue && $this->continue);
+
+		return $cycles;
 
 	}
 

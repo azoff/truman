@@ -2,8 +2,8 @@
 
 class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
-	public function xtestSignature() {
-		$clientA = new TrumanClient(array(), false);
+	public function testSignature() {
+		$clientA = new TrumanClient(array(), 0);
 		$clientB = new TrumanClient($spec = array('port' => 12345), false);
 		$this->assertNotEmpty($sig = $clientA->getSignature());
 		$clientA->addDeskSpec($spec, false);
@@ -22,18 +22,18 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 		// new clients should auto notify any connected desks
 		$clientB = new TrumanClient('127.0.0.1:12345');
-		$this->assertNotEmpty($desk->tick(null, 1));
+		while($desk->tick());
 		$this->assertEquals($clientB->getSignature(), $desk->getClient()->getSignature());
 
 		// outdated clients shouldn't override newer clients
 		$clientA->notifyDesks();
-		$this->assertNotEmpty($desk->tick(null, 1));
+		while($desk->tick());
 		$this->assertNotEquals($clientA->getSignature(), $desk->getClient()->getSignature());
 
 		// existing client updates should be reflected
 		$spec['host'] = '127.0.0.1';
 		$clientB->addDeskSpec('localhost:12345');
-		$this->assertNotEmpty($desk->tick(null, 1));
+		while($desk->tick());
 		$this->assertEquals(
 			$clientB->getDeskCount(),
 			$desk->getClient()->getDeskCount()
@@ -41,7 +41,7 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 	}
 
-	public function xtestChannels() {
+	public function testChannels() {
 
 		$specs[] = array(
 			'port' => 12346,

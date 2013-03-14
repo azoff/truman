@@ -15,7 +15,7 @@ class TrumanClient {
 	private $timestamp;
 	private $signature;
 
-	public function __construct($desk_specs = array(), $notify_desks = true) {
+	public function __construct($desk_specs = array(), $notify_desks = 1) {
 		$this->channels = array();
 		$this->desk_specs = array();
 		if (is_array($desk_specs) && !TrumanUtil::isKeyedArray($desk_specs))
@@ -30,7 +30,7 @@ class TrumanClient {
 		return __CLASS__."<{$sig}>[{$count}]";
 	}
 
-	public function addDeskSpec($desk_spec = null, $notify_desks = true) {
+	public function addDeskSpec($desk_spec = null, $notify_desks = 1) {
 		if (is_null($desk_spec))
 			TrumanException::throwNew($this, 'null desc_spec is not allowed');
 		if (!is_array($desk_spec))
@@ -55,11 +55,11 @@ class TrumanClient {
 		$this->dirty    = true;
 		$this->notified = false;
 
-		if ($notify_desks)
-			$this->notifyDesks();
+		if ($notify_desks > 0)
+			$this->notifyDesks($notify_desks);
 	}
 
-	public function addDeskSpecs(array $desk_specs, $notify_desks = true) {
+	public function addDeskSpecs(array $desk_specs, $notify_desks = 1) {
 		foreach ($desk_specs as $desk_spec)
 			$this->addDeskSpec($desk_spec, false);
 		if ($notify_desks)
