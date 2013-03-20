@@ -59,20 +59,17 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testBuckSocket() {
-		$test        = $this;
-		$desk_opts   = array('buck_port' => 12345);
-		$socket_opts = array('port' => 12345, 'force_mode' => TrumanSocket::MODE_CLIENT);
-
+		$port = 12345;
 		$buck = new TrumanBuck('usleep', array(200));
-		$desk = new TrumanDesk($desk_opts);
-		$client = new TrumanSocket($socket_opts);
+		$desk = new TrumanDesk($port);
+		$client = new TrumanSocket($port, array('force_client_mode' => 1));
 
 		$this->assertTrue($client->sendBuck($buck));
 
 		$results = $desk->start(array($this, 'stopOnResult'));
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
-		$test->assertObjectHasAttribute('retval', $data);
-		$test->assertEquals($buck->invoke(), $data->retval);
+		$this->assertObjectHasAttribute('retval', $data);
+		$this->assertEquals($buck->invoke(), $data->retval);
 	}
 
 	public function testStartStop() {
