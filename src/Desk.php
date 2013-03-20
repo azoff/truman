@@ -17,7 +17,7 @@ class TrumanDesk {
 	private $processes;
 	private $shell_pids, $php_pids;
 	private $stdins, $stdouts, $stderrs;
-	private $buck_socket;
+	private $inbound_socket;
 
 	private $log_drawer_errors;
 	private $log_socket_errors;
@@ -36,7 +36,6 @@ class TrumanDesk {
 		'client_signature'   => '',
 		'spawn'              => 3,
 		'include'            => array(),
-		'buck_port'          => 0,
 		'log_drawer_errors'  => true,
 		'log_socket_errors'  => true,
 		'log_client_updates' => true,
@@ -45,16 +44,18 @@ class TrumanDesk {
 		'log_tick_work'      => true
 	);
 
-	public function __construct(array $options = array()) {
+	public function __construct($inbound_host_spec = null, array $options = array()) {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
-		$this->waiting  = new SplPriorityQueue();
 		$this->tracking = array();
+		$this->waiting  = new SplPriorityQueue();
 
-		$this->buck_socket = new TrumanSocket(array(
-			'port' => $options['buck_port']
-		));
+		if (!is_null($inbound_host_spec)) {
+			$this->inbound_socket = new TrumanSocket($inbound_host_spec);
+			if ($this->inbound_socket->isClient())
+				TrumanException::throwNew($this, 'inbound socket may not run in client mode');
+		}
 
 		if (strlen($sig = $options['client_signature']))
 			$this->client = TrumanClient::fromSignature($sig);
@@ -80,7 +81,7 @@ class TrumanDesk {
 
 	public function __destruct() {
 		$this->stop();
-		unset($this->buck_socket);
+		unset($this->inbound_socket);
 		if (count($this->processes))
 			foreach ($this->drawerKeys() as $key)
 				$this->killDrawer($key);
@@ -88,7 +89,7 @@ class TrumanDesk {
 
 	public function __toString() {
 		$count = $this->drawerCount();
-		return __CLASS__."<buck:{$this->buck_socket}>[{$count}]";
+		return __CLASS__."<buck:{$this->inbound_socket}>[{$count}]";
 	}
 
 	public function drawerCount() {
@@ -197,13 +198,16 @@ class TrumanDesk {
 
 	public function receiveBuck($timeout = 0) {
 
-		if (!strlen($serialized = $this->buck_socket->receive(null, $timeout)))
+		if (!isset($this->inbound_socket))
+			return null;
+
+		if (!strlen($serialized = $this->inbound_socket->receive(null, $timeout)))
 			return null;
 
 		$buck = @unserialize($serialized);
 		if (!($buck instanceof TrumanBuck)) {
 			if ($this->log_socket_errors)
-				error_log("{$this} {$this->buck_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
+				error_log("{$this} {$this->inbound_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
 			return null;
 		}
 

@@ -5,7 +5,6 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Convert sockets and desks to take URLs
 - Create tests for client
   + local vs. remote verification
 - Test priority

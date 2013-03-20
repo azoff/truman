@@ -148,7 +148,7 @@ class TrumanClient {
 	public static function createOrGetSocket($target, $desk_spec) {
 		if (!isset(self::$sockets[$target]))
 			self::$sockets[$target] = new TrumanSocket(array(
-				'force_mode' => TrumanSocket::MODE_CLIENT
+				'force_client_mode' => 1
 			) + $desk_spec);
 		return self::$sockets[$target];
 	}

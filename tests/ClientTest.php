@@ -13,7 +13,7 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 	public function testNotifyDesks() {
 
-		$desk = new TrumanDesk(array('buck_port' => 12345));
+		$desk = new TrumanDesk(12345);
 
 		// create an "outdated" client by not notifying desks
 		$spec = array('127.0.0.1:12345', 'localhost:12345');
@@ -66,7 +66,7 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 		));
 
 		foreach ($specs as $spec)
-			$desks[] = new TrumanDesk(array('buck_port' => $spec['port']));
+			$desks[] = new TrumanDesk($spec);
 
 		$client = new TrumanClient($specs);
 

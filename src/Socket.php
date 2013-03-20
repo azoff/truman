@@ -2,9 +2,6 @@
 
 class TrumanSocket {
 
-	const MODE_SERVER = 2;
-	const MODE_CLIENT = 4;
-
 	private static $_DEFAULT_OPTIONS = array(
 		'host'        => 0, // Bind to all incoming addresses
 		'port'        => 0, // Self-assign a port number
@@ -16,18 +13,26 @@ class TrumanSocket {
 		'reuse_port' => true, // Marks the socket as reusable
 		'max_connections' => null, // Number of connections to allow on the socket, null is system dependent
 		'nonblocking' => true, // Does not block on accept()
-		'force_mode' => 0, // Forces client mode for the socket
+		'force_client_mode' => 0, // Forces client mode for the socket
 		'msg_delimiter' => PHP_EOL // Splits message boundaries
 	);
 
-	private $mode;
+	private $server_mode;
+	private $client_mode;
 	private $options;
 	private $socket;
 	private $connections = array();
 
-	public function __construct(array $options = array()) {
+	public function __construct($host_spec, array $options = array()) {
 
-		$this->options = $options + self::$_DEFAULT_OPTIONS;
+		if (is_int($host_spec))
+			$host_spec = "0:{$host_spec}";
+		if (is_string($host_spec))
+			$host_spec = parse_url($host_spec);
+		if (!is_array($host_spec))
+			TrumanException::throwNew($this, 'host_spec must be an int, string, or array');
+
+		$this->options = $host_spec + $options + self::$_DEFAULT_OPTIONS;
 
 		$this->socket = @socket_create(
 			$this->options['socket_domain'],
@@ -52,10 +57,10 @@ class TrumanSocket {
 
 		}
 
-		$force_mode = $this->options['force_mode'];
+		$force_client_mode = $this->options['force_client_mode'];
 
 		// server mode (local)
-		if (self::isLocal($this->getHostSpec()) && $force_mode !== self::MODE_CLIENT) {
+		if (self::isLocal($this->getHostSpec()) && !$force_client_mode) {
 
 			if ($this->options['nonblocking'])
 				if (@socket_set_nonblock($this->socket) === false);
@@ -78,7 +83,8 @@ class TrumanSocket {
 			if ($listening === false)
 				$this->throwError("Unable to listen to {$this}", $this->socket);
 
-			$this->mode = self::MODE_SERVER;
+			$this->client_mode = false;
+			$this->server_mode = true;
 
 		// client mode (remote)
 		} else {
@@ -92,7 +98,8 @@ class TrumanSocket {
 			if ($connected === false)
 				$this->throwError("Unable to connect to {$this}", $this->socket);
 
-			$this->mode = self::MODE_CLIENT;
+			$this->client_mode = false;
+			$this->server_mode = true;
 
 		}
 
@@ -112,7 +119,7 @@ class TrumanSocket {
 
 	public function acceptConnection($timeout = 0) {
 
-		if ($this->mode !== self::MODE_SERVER)
+		if (!$this->isServer())
 			return false;
 
 		$sockets = array($this->socket);
@@ -163,6 +170,14 @@ class TrumanSocket {
 		return array('host' => $host, 'port' => $port);
 	}
 
+	public function isClient() {
+		return $this->client_mode;
+	}
+
+	public function isServer() {
+		return $this->server_mode;
+	}
+
 	public function openConnection($connection) {
 
 		if (!is_resource($connection))
@@ -181,7 +196,7 @@ class TrumanSocket {
 
 	public function receive($callback = null, $timeout = 0) {
 
-		if ($this->mode === self::MODE_CLIENT) {
+		if ($this->isClient()) {
 			$connections = array($this->socket);
 		} else {
 			$this->acceptConnection($timeout);
