@@ -8,6 +8,7 @@ TODO
 - Test priority
 - Test context
 - Test includes
+- Add wrapper class
 - Test reap
 - Create an example client/server
 - Implement load testing
