@@ -3,7 +3,7 @@
 class TrumanSocket {
 
 	private static $_DEFAULT_OPTIONS = array(
-		'host'        => 0, // Bind to all incoming addresses
+		'host'        => '0.0.0.0', // Bind to all incoming addresses
 		'port'        => 0, // Self-assign a port number
 		'buffer_size' => 2048, // Chunk size for socket reads
 		'socket_domain' => AF_INET, // IPv4 Internet based protocols
@@ -19,6 +19,7 @@ class TrumanSocket {
 
 	private $server_mode;
 	private $client_mode;
+	private $host, $port;
 	private $options;
 	private $socket;
 	private $connections = array();
@@ -26,13 +27,16 @@ class TrumanSocket {
 	public function __construct($host_spec, array $options = array()) {
 
 		if (is_int($host_spec))
-			$host_spec = "0:{$host_spec}";
+			$host_spec = array('port' => $host_spec);
 		if (is_string($host_spec))
 			$host_spec = parse_url($host_spec);
 		if (!is_array($host_spec))
 			TrumanException::throwNew($this, 'host_spec must be an int, string, or array');
 
 		$this->options = $host_spec + $options + self::$_DEFAULT_OPTIONS;
+
+		$this->host = $this->options['host'];
+		$this->port = $this->options['port'];
 
 		$this->socket = @socket_create(
 			$this->options['socket_domain'],
@@ -60,7 +64,7 @@ class TrumanSocket {
 		$force_client_mode = $this->options['force_client_mode'];
 
 		// server mode (local)
-		if (self::isLocal($this->getHostSpec()) && !$force_client_mode) {
+		if (TrumanUtil::isLocalAddress($this->getHost()) && !$force_client_mode) {
 
 			if ($this->options['nonblocking'])
 				if (@socket_set_nonblock($this->socket) === false);
@@ -68,12 +72,12 @@ class TrumanSocket {
 
 			$bound = @socket_bind(
 				$this->socket,
-				$this->options['host'],
-				$this->options['port']
+				$this->getHost(),
+				$this->getPort()
 			);
 
 			if ($bound === false)
-				$this->throwError("Unable to bind to {$this}", $this->socket);
+				$this->throwError("Unable to bind to port {$this->options['port']}", $this->socket);
 
 			$listening = @socket_listen(
 				$this->socket,
@@ -81,7 +85,10 @@ class TrumanSocket {
 			);
 
 			if ($listening === false)
-				$this->throwError("Unable to listen to {$this}", $this->socket);
+				$this->throwError("Unable to listen to port {$this->options['port']}", $this->socket);
+
+			if (@socket_getsockname($this->socket, $this->host, $this->port) === false)
+				$this->throwError('Unable to get socket name', $this->socket);
 
 			$this->client_mode = false;
 			$this->server_mode = true;
@@ -91,12 +98,16 @@ class TrumanSocket {
 
 			$connected = @socket_connect(
 				$this->socket,
-				$this->options['host'],
-				$this->options['port']
+				$this->getHost(),
+				$this->getPort()
 			);
 
 			if ($connected === false)
-				$this->throwError("Unable to connect to {$this}", $this->socket);
+				$this->throwError("Unable to connect to {$this->options['host']}:{$this->options['port']}",
+					$this->socket);
+
+			if (@socket_getpeername($this->socket, $this->host, $this->port) === false)
+				$this->throwError('Unable to get peer name', $this->socket);
 
 			$this->client_mode = false;
 			$this->server_mode = true;
@@ -113,8 +124,7 @@ class TrumanSocket {
 	}
 
 	public function __toString() {
-		$spec = $this->getHostSpec();
-		return __CLASS__."<{$spec['host']}:{$spec['port']}>";
+		return __CLASS__."<{$this->host}:{$this->port}>";
 	}
 
 	public function acceptConnection($timeout = 0) {
@@ -164,10 +174,12 @@ class TrumanSocket {
 		return "{$host}:{$port}";
 	}
 
-	public function getHostSpec() {
-		$host = $this->options['host'];
-		$port = $this->options['port'];
-		return array('host' => $host, 'port' => $port);
+	public function getHost() {
+		return $this->host;
+	}
+
+	public function getPort() {
+		return (int) $this->port;
 	}
 
 	public function isClient() {
@@ -292,14 +304,6 @@ class TrumanSocket {
 		$msg = "{$msg}. {$error}";
 
 		TrumanException::throwNew($this, $msg);
-
-	}
-
-	public static function isLocal($host_spec) {
-		$host = $host_spec['host'];
-		return in_array($host, array(
-			0, '0.0.0.0', '127.0.0.1', 'localhost', gethostname()
-		));
 
 	}
 

@@ -9,6 +9,7 @@ class TrumanDesk {
 	const STDOUT = 1;
 	const STDERR = 2;
 
+	private $id;
 	private $client;
 	private $waiting;
 	private $tracking;
@@ -25,6 +26,8 @@ class TrumanDesk {
 	private $log_client_reroute;
 	private $log_dropped_bucks;
 	private $log_tick_work;
+
+	private static $_KNOWN_HOSTS = array();
 
 	private static $_DESCRIPTORS = array(
 		array('pipe', 'r'),
@@ -48,6 +51,7 @@ class TrumanDesk {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
+		$this->id       = uniqid(microtime(true), true);
 		$this->tracking = array();
 		$this->waiting  = new SplPriorityQueue();
 
@@ -77,11 +81,17 @@ class TrumanDesk {
 
 		while ($options['spawn']-- > 0)
 			$this->spawnDrawer();
+
+		register_shutdown_function(array($this, '__destruct'));
+
 	}
 
 	public function __destruct() {
 		$this->stop();
-		unset($this->inbound_socket);
+		if (isset($this->inbound_socket)) {
+			$this->inbound_socket->__destruct();
+			unset($this->inbound_socket);
+		}
 		if (count($this->processes))
 			foreach ($this->drawerKeys() as $key)
 				$this->killDrawer($key);
@@ -89,7 +99,7 @@ class TrumanDesk {
 
 	public function __toString() {
 		$count = $this->drawerCount();
-		return __CLASS__."<buck:{$this->inbound_socket}>[{$count}]";
+		return __CLASS__."<{$this->inbound_socket}>[{$count}]";
 	}
 
 	public function drawerCount() {
@@ -110,6 +120,31 @@ class TrumanDesk {
 			error_log("{$this} dropping {$buck} because it is already in the queue");
 			return null;
 		}
+	}
+
+	public function dequeueBuck(TrumanBuck $buck, $running = false) {
+
+		$extracted = $buck;
+		$uuid = $buck->getUUID();
+
+		if (!array_key_exists($uuid, $this->tracking))
+			return null;
+
+		if ($running) {
+			$this->tracking[$uuid] = self::STATE_RUNNING;
+			$extracted = $this->waiting->extract();
+		} else {
+			// if it's running, it's already been extracted
+			if ($this->tracking[$uuid] !== self::STATE_RUNNING)
+				$extracted = $this->waiting->extract();
+			unset($this->tracking[$uuid]);
+		}
+
+		if ($extracted->getUUID() !== $uuid)
+			error_log("{$this} dequeue mismatch: expected {$buck}, dequeued {$extracted}");
+
+		return $extracted;
+
 	}
 
 	public function getClient() {
@@ -148,6 +183,46 @@ class TrumanDesk {
 
 	}
 
+	public function ownsBuck(TrumanBuck $buck) {
+
+		// assume ownership if no client is available
+		if (!($client = $this->getClient()))
+			return true;
+
+		// assume ownership if no inbound socket exists
+		if (!isset($this->inbound_socket))
+			return true;
+
+		// ensure that the outbound and inbound ports match
+		$desk_spec = $client->getDeskSpec($buck);
+		if ($this->inbound_socket->getPort() !== intval($desk_spec['port']))
+			return false;
+
+		// check to see if we've seen this host before
+		$desk_host = gethostbyname($desk_spec['host']);
+		if (in_array($desk_host, self::$_KNOWN_HOSTS))
+			return true;
+
+		// check to see if we routed this buck to ourselves
+		if ($buck->getRoutingDeskId() === $this->id) {
+			if ($this->log_client_reroute)
+				error_log("{$this} now accepts bucks on interface {$desk_host}");
+			self::$_KNOWN_HOSTS[] = $desk_host; // cache it!
+			return true;
+		}
+
+		// check to see if hosts match by naive comparison
+		if ($this->inbound_socket->getHost() === $desk_host)
+			return true;
+
+		// if that fails, see if the outbound host maps one of the local host's addresses
+		if (TrumanUtil::isLocalAddress($desk_host))
+			return true;
+
+		return false;
+
+	}
+
 	public function processBuck($timeout = 0) {
 
 		if ($this->waiting->isEmpty())
@@ -155,21 +230,28 @@ class TrumanDesk {
 
 		$buck = $this->waiting->current();
 
+		// update client signature, if one exists
 		if ($buck->hasClientSignature())
 			$this->updateClient($buck->getClient());
 
-		// if re-route or sending to stream fails, return null
-		if (!$buck->isNoop() && $this->getClient() &&
-			!$this->getClient()->isLocalTarget($buck) &&
-			!$this->rerouteBuck($buck, $timeout) ||
-			!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
+		// always process noop bucks locally
+		if ($buck->isNoop())
+			return $this->dequeueBuck($buck);
+
+		// check to see if the client agrees that buck belongs here
+		if (!$this->ownsBuck($buck)) {
+			// reroute if it doesn't belong here
+			if ($this->rerouteBuck($buck, $timeout))
+				return $this->dequeueBuck($buck);
+			return null;
+		}
+
+		// if sending to stream fails, return null
+		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
 
-		// otherwise, mark the job as running and remove it
-		// from the priority queue
-		$uuid = $buck->getUUID();
-		$this->tracking[$uuid] = self::STATE_RUNNING;
-		return $this->waiting->extract();
+		// otherwise, mark the job as running and remove it from the queue
+		return $this->dequeueBuck($buck, true);
 
 	}
 
@@ -260,10 +342,8 @@ class TrumanDesk {
 				}
 			}
 
-			if ($data && isset($data->buck)) {
-				$uuid = $data->buck->getUUID();
-				unset($this->tracking[$uuid]);
-			}
+			if ($data && isset($data->buck))
+				$this->dequeueBuck($data->buck);
 
 			return $result;
 
@@ -276,9 +356,11 @@ class TrumanDesk {
 	public function rerouteBuck(TrumanBuck $buck, $timeout = 0) {
 
 		if ($this->log_client_reroute) {
-			$socket = $this->getClient()->getSocket($buck);
-			error_log("{$this} rerouting {$buck} to {$socket}");
+			$spec = $this->getClient()->getDeskSpec($buck);
+			error_log("{$this} rerouting {$buck} to TrumanDesk<{$spec['host']}:{$spec['port']}>");
 		}
+
+		$buck->setRoutingDeskId($this->id);
 
 		if (!$this->getClient()->sendBuck($buck, $timeout))
 			return null;
@@ -314,14 +396,14 @@ class TrumanDesk {
 
 	}
 
-	public function start($callback = null) {
+	public function start($callback = null, $timeout = 0) {
 		if (is_null($callback))
 			$callback = function() { return true; };
 		else if (!is_callable($callback))
 			TrumanException::throwNew($this, 'Invalid callback');
 		$cycles = array();
 		$this->continue = true;
-		do $cycles = array_merge($cycles, $this->tick($callback));
+		do $cycles = array_merge($cycles, $this->tick($callback, $timeout));
 		while($this->continue);
 		return $cycles;
 	}

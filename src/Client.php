@@ -5,8 +5,6 @@ class TrumanClient {
 	const TIMEOUT_DEFAULT = 5;
 
 	private static $sockets = array();
-	private static $local_ip;
-	private static $public_ip;
 
 	private $channels;
 	private $desk_specs;
@@ -26,15 +24,17 @@ class TrumanClient {
 
 	public function __toString() {
 		$count = $this->getDeskCount();
-		$sig = $this->getSignature();
+		$sig = substr($this->getSignature(), 24);
 		return __CLASS__."<{$sig}>[{$count}]";
 	}
 
 	public function addDeskSpec($desk_spec = null, $notify_desks = 1) {
-		if (is_null($desk_spec))
-			TrumanException::throwNew($this, 'null desc_spec is not allowed');
-		if (!is_array($desk_spec))
+		if (is_int($desk_spec))
+			$desk_spec = array('port' => $desk_spec);
+		if (is_string($desk_spec))
 			$desk_spec = parse_url($desk_spec);
+		if (is_null($desk_spec) || !is_array($desk_spec))
+			TrumanException::throwNew($this, 'desc_spec must be an int, string, or array');
 		if (!isset($desk_spec['host']))
 			$desk_spec['host'] = '127.0.0.1';
 		if (!isset($desk_spec['channels']))
@@ -42,7 +42,8 @@ class TrumanClient {
 		if (!is_array($channels = $desk_spec['channels']))
 			$channels = array($channels);
 
-		$target = "{$desk_spec['host']}:{$desk_spec['port']}";
+		$schannels = serialize($desk_spec['channels']);
+		$target = "{$desk_spec['host']}:{$desk_spec['port']}::{$schannels}";
 		$this->desk_specs[$target] = $desk_spec;
 
 		foreach ($channels as $channel) {
@@ -61,9 +62,9 @@ class TrumanClient {
 
 	public function addDeskSpecs(array $desk_specs, $notify_desks = 1) {
 		foreach ($desk_specs as $desk_spec)
-			$this->addDeskSpec($desk_spec, false);
-		if ($notify_desks)
-			$this->notifyDesks();
+			$this->addDeskSpec($desk_spec, 0);
+		if ($notify_desks > 0)
+			$this->notifyDesks($notify_desks);
 	}
 
 	public function getDeskCount() {
@@ -79,7 +80,14 @@ class TrumanClient {
 		return $this->signature;
 	}
 
-	public function getSocket(TrumanBuck $buck) {
+	public function getDeskSpec(TrumanBuck $buck) {
+		$channel_name = $buck->getChannel();
+		$channel      = $this->channels[$channel_name];
+		$target       = $channel->getTarget($buck);
+		return $this->desk_specs[$target];
+	}
+
+	public function getDeskSocket(TrumanBuck $buck) {
 		$channel_name = $buck->getChannel();
 		$channel      = $this->channels[$channel_name];
 		$target       = $channel->getTarget($buck);
@@ -92,22 +100,10 @@ class TrumanClient {
 		return $this->timestamp;
 	}
 
-	public function isLocalTarget(TrumanBuck $buck) {
-		$socket = $this->getSocket($buck);
-		$desk_spec = $socket->getHostSpec();
-		if (TrumanSocket::isLocal($desk_spec))
-			return true;
-		$ip_address = $desk_spec['host'];
-		if ($ip_address === self::localIpAddress())
-			return true;
-		if ($ip_address === self::publicIpAddress())
-			return true;
-		return false;
-	}
-
 	public function newNotificationBuck() {
-		return new TrumanBuck(TrumanBuck::CALLABLE_NOOP, array(), array(
-			'client_signature' => $this->getSignature(),
+		$signature = $this->getSignature();
+		return new TrumanBuck(TrumanBuck::CALLABLE_NOOP, array($signature), array(
+			'client_signature' => $signature,
 			'priority'         => TrumanBuck::PRIORITY_URGENT
 		));
 	}
@@ -127,13 +123,9 @@ class TrumanClient {
 	}
 
 	public function sendBuck(TrumanBuck $buck, $timeout = 0) {
-		if (!$this->notified)
-			$this->notifyDesks();
-
-		$socket = $this->getSocket($buck);
+		$socket = $this->getDeskSocket($buck);
 		if (!$socket->sendBuck($buck, null, $timeout))
 			TrumanException::throwNew($this, "Unable to send {$buck} to {$socket}");
-
 		return $buck;
 	}
 
@@ -165,23 +157,6 @@ class TrumanClient {
 		$client = new TrumanClient($specs, false);
 		$client->updateInternals($timestamp);
 		return $client;
-	}
-
-	public static function localIpAddress($interface = 'eth0') {
-		if (!isset(self::$local_ip)) {
-			// TODO: this sucks.
-			$status = shell_exec("ifconfig {$interface}");
-			if (preg_match("#inet addr:(.+?)\s#", $status, $matches))
-				self::$local_ip = $matches[1];
-		}
-		return self::$local_ip;
-	}
-
-	public static function publicIpAddress() {
-		if (!isset(self::$public_ip))
-			// TODO: this sucks worse.
-			self::$public_ip = file_get_contents('http://icanhazip.com/');
-		return self::$public_ip;
 	}
 
 }

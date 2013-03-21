@@ -5,8 +5,6 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Create tests for client
-  + local vs. remote verification
 - Test priority
 - Test context
 - Test includes

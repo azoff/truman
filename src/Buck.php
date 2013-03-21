@@ -18,6 +18,7 @@ class TrumanBuck {
 	private $callable;
 	private $channel;
 	private $context;
+	private $routing_desk_id;
 	private $client_signature;
 	private $kwargs;
 	private $args;
@@ -88,6 +89,10 @@ class TrumanBuck {
 		return $this->client_signature;
 	}
 
+	public function getRoutingDeskId() {
+		return $this->routing_desk_id;
+	}
+
 	public function getPriority() {
 		return $this->priority;
 	}
@@ -152,7 +157,11 @@ class TrumanBuck {
 
 	}
 
-	public static function getEnvContext() {
+	public function setRoutingDeskId($routing_desk_id) {
+		$this->routing_desk_id = $routing_desk_id;
+	}
+
+		public static function getEnvContext() {
 		if (!isset($_ENV[self::CONTEXT_KEY]) || !strlen($_ENV[self::CONTEXT_KEY]))
 			return null;
 		return $_ENV[self::CONTEXT_KEY];

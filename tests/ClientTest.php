@@ -4,24 +4,24 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 	public function testSignature() {
 		$clientA = new TrumanClient(array(), 0);
-		$clientB = new TrumanClient($spec = array('port' => 12345), false);
+		$clientB = new TrumanClient($port = 12345, false);
 		$this->assertNotEmpty($sig = $clientA->getSignature());
-		$clientA->addDeskSpec($spec, false);
+		$clientA->addDeskSpec($port, false);
 		$this->assertNotEquals($sig, $clientA->getSignature());
 		$this->assertEquals($clientB->getDeskSpecs(), $clientA->getDeskSpecs());
 	}
 
 	public function testNotifyDesks() {
 
-		$desk = new TrumanDesk(12345);
+		$desk = new TrumanDesk($port = 12345);
 
 		// create an "outdated" client by not notifying desks
-		$spec = array('127.0.0.1:12345', 'localhost:12345');
+		$spec = array("127.0.0.1:{$port}", "localhost:{$port}");
 		$clientA = new TrumanClient($spec, false);
 		$clientA->updateInternals();
 
 		// new clients should auto notify any connected desks
-		$clientB = new TrumanClient('127.0.0.1:12345');
+		$clientB = new TrumanClient("127.0.0.1:{$port}");
 		while($desk->tick());
 		$this->assertEquals($clientB->getSignature(), $desk->getClient()->getSignature());
 
@@ -32,12 +32,14 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 		// existing client updates should be reflected
 		$spec['host'] = '127.0.0.1';
-		$clientB->addDeskSpec('localhost:12345');
+		$clientB->addDeskSpec("localhost:{$port}");
 		while($desk->tick());
 		$this->assertEquals(
 			$clientB->getDeskCount(),
 			$desk->getClient()->getDeskCount()
 		);
+
+		$desk->__destruct();
 
 	}
 
@@ -68,17 +70,64 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 		foreach ($specs as $spec)
 			$desks[] = new TrumanDesk($spec);
 
-		$client = new TrumanClient($specs);
+		$client = new TrumanClient($specs, false);
 
 		foreach ($bucks as $buck)
 			$client->sendBuck($buck);
 
 		foreach ($desks as $i => $desk) {
+			$actual = 0;
 			$expected = count($specs[$i]['channels']);
-			do if (!is_null($desk->receiveBuck()))
-				$expected--;
-			while($expected > 0);
+			while ($desk->receiveBuck()) $actual++;
+			$this->assertEquals($expected, $actual);
+			$desk->__destruct();
 		}
+
+	}
+
+	public function testBuckReRouting() {
+
+		// get all network addresses
+		preg_match_all("#inet addr:\s*([^\s/]+)#", shell_exec('ifconfig'), $interfaces);
+
+		$port = 12345;
+
+		// add the first interface twice, to test caching
+		array_unshift($interfaces[1], $interfaces[1][0]);
+
+		// build specifications
+		$specs = array();
+		foreach ($interfaces[1] as $i => $interface)
+			$specs[] = array(
+				'host' => $interface,
+				'port' => $port,
+				'channels' => "channel_{$i}"
+			);
+
+		// listening on all interfaces
+		$desk = new TrumanDesk($port);
+
+		// explicitly enumerates all interfaces
+		$client = new TrumanClient($specs);
+
+		// send a buck to each interface
+		foreach ($specs as $spec) {
+			$options = array('channel' => $spec['channels']);
+			$buck = new TrumanBuck('gethostname', array($spec['host']), $options);
+			$client->sendBuck($buck);
+		}
+
+		// capture all the results
+		$results = array();
+		$expected = count($specs);
+		$desk->start(function($desk, $in, $out, $result) use (&$results, $expected) {
+			if (!is_null($result))
+				$results[] = $result;
+			if (count($results) >= $expected)
+				$desk->stop();
+		});
+
+		$desk->__destruct();
 
 	}
 
