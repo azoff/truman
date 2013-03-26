@@ -228,7 +228,7 @@ class TrumanDesk {
 		if ($this->waiting->isEmpty())
 			return null;
 
-		$buck = $this->waiting->current();
+		$buck = $this->waiting->top();
 
 		// update client signature, if one exists
 		if ($buck->hasClientSignature())

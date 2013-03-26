@@ -8,10 +8,10 @@ class TrumanBuck {
 
 	const CHANNEL_DEFAULT = 'default';
 
-	const PRIORITY_LOW     = 4096;
+	const PRIORITY_LOW     = 1024;
 	const PRIORITY_MEDIUM  = 2048;
-	const PRIORITY_HIGH    = 1024;
-	const PRIORITY_URGENT  = 0;
+	const PRIORITY_HIGH    = 4096;
+	const PRIORITY_URGENT  = PHP_INT_MAX;
 
 	private $uuid;
 	private $priority;
@@ -41,9 +41,9 @@ class TrumanBuck {
 		$this->args   = $args;
 		$this->kwargs = TrumanUtil::isKeyedArray($args);
 
-		$this->callable   = $options['allow_closures'] ? $callable : $callable_name;
-		$this->priority   = (int) $options['priority'];
-		$this->uuid       = $this->calculateUUID();
+		$this->callable = $options['allow_closures'] ? $callable : $callable_name;
+		$this->priority = (int) $options['priority'];
+		$this->uuid     = $this->calculateUUID();
 
 		$this->client_signature = $options['client_signature'];
 		$this->channel = $options['channel'];

@@ -5,9 +5,7 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Test priority
 - Test context
-- Test includes
 - Add wrapper class
 - Test reap
 - Create an example client/server
