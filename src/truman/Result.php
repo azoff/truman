@@ -1,5 +1,6 @@
-<?
-class TrumanResult extends SimpleXMLElement {
+<? namespace truman;
+
+class Result extends \SimpleXMLElement {
 
 	const TAG_PREFIX = 'RESULT_';
 

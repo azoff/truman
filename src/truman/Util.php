@@ -1,6 +1,6 @@
-<?
+<? namespace truman;
 
-class TrumanUtil {
+class Util {
 
 	public static function isKeyedArray(array $to_check) {
 		return (bool) array_filter(array_keys($to_check), 'is_string');
@@ -33,7 +33,7 @@ class TrumanUtil {
 	}
 
 	public static function trace() {
-		self::log(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
+		self::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
 	}
 
 }

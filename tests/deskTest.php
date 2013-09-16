@@ -1,6 +1,11 @@
 <? require_once dirname(__DIR__) . '/autoload.php';
 
-class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
+use truman\Buck;
+use truman\Desk;
+use truman\Socket;
+use truman\Client;
+
+class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	private function newInclude($content) {
 		$dir = '/tmp';
@@ -20,11 +25,11 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	public function testInclude() {
 		$includes[] = $this->newInclude('function a(){ return "a"; }');
 		$includes[] = $this->newInclude('function b(){ return "b"; }');
-		$desk = new TrumanDesk(null, array(
+		$desk = new Desk(null, array(
 			'include' => $includes
 		));
-		$desk->enqueueBuck(new TrumanBuck('a'));
-		$desk->enqueueBuck(new TrumanBuck('b'));
+		$desk->enqueueBuck(new Buck('a'));
+		$desk->enqueueBuck(new Buck('b'));
 		$count = 2;
 		$results = $desk->start(function($desk, $i, $o, $result) use (&$count) {
 			if (!is_null($result)) {
@@ -40,19 +45,19 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 
 
 	public function testDeDupe() {
-		$desk   = new TrumanDesk();
-		$first  = $desk->enqueueBuck(new TrumanBuck('usleep', array(100)));
-		$second = $desk->enqueueBuck(new TrumanBuck('usleep', array(100)));
+		$desk   = new Desk();
+		$first  = $desk->enqueueBuck(new Buck('usleep', [100]));
+		$second = $desk->enqueueBuck(new Buck('usleep', [100]));
 		$this->assertNotNull($first);
 		$this->assertNull($second);
 		$this->assertEquals(1, $desk->waitingCount());
 	}
 
 	public function testPriority() {
-		$desk = new TrumanDesk();
-		$low = $desk->enqueueBuck(new TrumanBuck('usleep', array(100), array('priority' => TrumanBuck::PRIORITY_LOW)));
-		$medium = $desk->enqueueBuck(new TrumanBuck('usleep', array(101), array('priority' => TrumanBuck::PRIORITY_MEDIUM)));
-		$high = $desk->enqueueBuck(new TrumanBuck('usleep', array(102), array('priority' => TrumanBuck::PRIORITY_HIGH)));
+		$desk = new Desk();
+		$low = $desk->enqueueBuck(new Buck('usleep', [100], ['priority' => Buck::PRIORITY_LOW]));
+		$medium = $desk->enqueueBuck(new Buck('usleep', [101], ['priority' => Buck::PRIORITY_MEDIUM]));
+		$high = $desk->enqueueBuck(new Buck('usleep', [102], ['priority' => Buck::PRIORITY_HIGH]));
 		$this->assertNotNull($low);
 		$this->assertNotNull($medium);
 		$this->assertNotNull($high);
@@ -62,10 +67,10 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testBuck() {
-		$buck = new TrumanBuck('max', array(1, 2));
-		$desk = new TrumanDesk();
+		$buck = new Buck('max', [1, 2]);
+		$desk = new Desk();
 		$desk->enqueueBuck($buck);
-		$results = $desk->start(array($this, 'stopOnResult'));
+		$results = $desk->start([$this, 'stopOnResult']);
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('buck', $data);
 		$this->assertEquals($buck, $data->buck);
@@ -73,10 +78,10 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testRetval() {
-		$buck = new TrumanBuck('strlen', array('test'));
-		$desk = new TrumanDesk();
+		$buck = new Buck('strlen', ['test']);
+		$desk = new Desk();
 		$desk->enqueueBuck($buck);
-		$results = $desk->start(array($this, 'stopOnResult'));
+		$results = $desk->start([$this, 'stopOnResult']);
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($buck->invoke(), $data->retval);
@@ -84,21 +89,21 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testException() {
-		$buck = new TrumanBuck('TrumanException::throwNew', array('test', 'test'));
-		$desk = new TrumanDesk();
+		$buck = new Buck('Exception::throwNew', ['test', 'test']);
+		$desk = new Desk();
 		$desk->enqueueBuck($buck);
-		$results = $desk->start(array($this, 'stopOnResult'));
+		$results = $desk->start([$this, 'stopOnResult']);
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('exception', $data);
-		$this->assertInstanceOf('TrumanException', $data->exception);
+		$this->assertInstanceOf('Exception', $data->exception);
 		$desk->__destruct();
 	}
 
 	public function testError() {
-		$buck = new TrumanBuck('fopen');
-		$desk = new TrumanDesk();
+		$buck = new Buck('fopen');
+		$desk = new Desk();
 		$desk->enqueueBuck($buck);
-		$results = $desk->start(array($this, 'stopOnResult'));
+		$results = $desk->start([$this, 'stopOnResult']);
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('error', $data);
 		$this->assertEquals(2, $data->error['type']);
@@ -106,10 +111,10 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testOutput() {
-		$buck = new TrumanBuck('phpcredits');
-		$desk = new TrumanDesk();
+		$buck = new Buck('phpcredits');
+		$desk = new Desk();
 		$desk->enqueueBuck($buck);
-		$results = $desk->start(array($this, 'stopOnResult'));
+		$results = $desk->start([$this, 'stopOnResult']);
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('output', $data);
 		$this->assertContains('PHP Credits', $data->output);
@@ -118,13 +123,13 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testBuckSocket() {
 		$port = 12345;
-		$buck = new TrumanBuck('usleep', array(300));
-		$desk = new TrumanDesk($port);
-		$client = new TrumanSocket($port, array('force_client_mode' => 1));
+		$buck = new Buck('usleep', [300]);
+		$desk = new Desk($port);
+		$client = new Socket($port, ['force_client_mode' => 1]);
 
 		$this->assertTrue($client->sendBuck($buck));
 
-		$results = $desk->start(array($this, 'stopOnResult'));
+		$results = $desk->start([$this, 'stopOnResult']);
 		$this->assertInstanceOf('stdClass', $data = array_pop($results)->data());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($buck->invoke(), $data->retval);
@@ -133,10 +138,10 @@ class TrumanDesk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testStartStop() {
 		$count = 0;
-		$desk = new TrumanDesk();
-		$desk->enqueueBuck(new TrumanBuck());
-		$desk->enqueueBuck(new TrumanBuck());
-		$desk->start(function(TrumanDesk $desk) use (&$count) {
+		$desk = new Desk();
+		$desk->enqueueBuck(new Buck());
+		$desk->enqueueBuck(new Buck());
+		$desk->start(function(Desk $desk) use (&$count) {
 			$count++;
 			$desk->stop();
 		});

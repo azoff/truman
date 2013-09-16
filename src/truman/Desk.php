@@ -1,6 +1,6 @@
-<?
+<? namespace truman;
 
-class TrumanDesk {
+class Desk {
 
 	const STATE_WAITING = 'waiting';
 	const STATE_RUNNING = 'running';
@@ -30,9 +30,9 @@ class TrumanDesk {
 	private static $_KNOWN_HOSTS = array();
 
 	private static $_DESCRIPTORS = array(
-		array('pipe', 'r'),
-		array('pipe', 'w'),
-		array('pipe', 'w')
+		['pipe', 'r'],
+		['pipe', 'w'],
+		['pipe', 'w']
 	);
 
 	private static $_DEFAULT_OPTIONS = array(
@@ -47,22 +47,22 @@ class TrumanDesk {
 		'log_tick_work'      => true
 	);
 
-	public function __construct($inbound_host_spec = null, array $options = array()) {
+	public function __construct($inbound_host_spec = null, array $options = []) {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
 		$this->id       = uniqid(microtime(true), true);
 		$this->tracking = array();
-		$this->waiting  = new SplPriorityQueue();
+		$this->waiting  = new \SplPriorityQueue();
 
 		if (!is_null($inbound_host_spec)) {
-			$this->inbound_socket = new TrumanSocket($inbound_host_spec);
+			$this->inbound_socket = new Socket($inbound_host_spec);
 			if ($this->inbound_socket->isClient())
-				TrumanException::throwNew($this, 'inbound socket may not run in client mode');
+				Exception::throwNew($this, 'inbound socket may not run in client mode');
 		}
 
 		if (strlen($sig = $options['client_signature']))
-			$this->client = TrumanClient::fromSignature($sig);
+			$this->client = Client::fromSignature($sig);
 
 		$this->log_drawer_errors  = (bool) $options['log_drawer_errors'];
 		$this->log_socket_errors  = (bool) $options['log_socket_errors'];
@@ -72,17 +72,17 @@ class TrumanDesk {
 		$this->log_tick_work      = (bool) $options['log_tick_work'];
 
 		if (!is_array($includes = $options['include']))
-			$includes = array($includes);
+			$includes = [$includes];
 
 		$this->command = implode(' ', array_merge(
-			array('php bin/drawer.php'),
+			['php bin/drawer.php'],
 			array_filter($includes, 'is_readable')
 		));
 
 		while ($options['spawn']-- > 0)
 			$this->spawnDrawer();
 
-		register_shutdown_function(array($this, '__destruct'));
+		register_shutdown_function([$this, '__destruct']);
 
 	}
 
@@ -110,7 +110,7 @@ class TrumanDesk {
 		return array_keys($this->processes);
 	}
 
-	public function enqueueBuck(TrumanBuck $buck) {
+	public function enqueueBuck(Buck $buck) {
 		$uuid = $buck->getUUID();
 		if (!array_key_exists($uuid, $this->tracking)) {
 			$this->tracking[$uuid] = self::STATE_WAITING;
@@ -122,7 +122,7 @@ class TrumanDesk {
 		}
 	}
 
-	public function dequeueBuck(TrumanBuck $buck, $running = false) {
+	public function dequeueBuck(Buck $buck, $running = false) {
 
 		$extracted = $buck;
 		$uuid = $buck->getUUID();
@@ -183,7 +183,7 @@ class TrumanDesk {
 
 	}
 
-	public function ownsBuck(TrumanBuck $buck) {
+	public function ownsBuck(Buck $buck) {
 
 		// assume ownership if no client is available
 		if (!($client = $this->getClient()))
@@ -216,7 +216,7 @@ class TrumanDesk {
 			return true;
 
 		// if that fails, see if the outbound host maps one of the local host's addresses
-		if (TrumanUtil::isLocalAddress($desk_host))
+		if (Util::isLocalAddress($desk_host))
 			return true;
 
 		return false;
@@ -287,9 +287,9 @@ class TrumanDesk {
 			return null;
 
 		$buck = @unserialize($serialized);
-		if (!($buck instanceof TrumanBuck)) {
+		if (!($buck instanceof Buck)) {
 			if ($this->log_socket_errors)
-				error_log("{$this} {$this->inbound_socket}, '{$serialized}' is not a serialize()'d TrumanBuck");
+				error_log("{$this} {$this->inbound_socket}, '{$serialized}' is not a serialize()'d Buck");
 			return null;
 		}
 
@@ -318,9 +318,9 @@ class TrumanDesk {
 			$key = array_pop(array_keys($streams, $input));
 
 			try {
-				$result = new TrumanResult($xml);
+				$result = new Result($xml);
 			} catch(Exception $ex) {
-				$result = TrumanResult::newInstance(false, (object) array(
+				$result = Result::newInstance(false, (object) array(
 					'error' => $xml
 				));
 			}
@@ -353,11 +353,11 @@ class TrumanDesk {
 
 	}
 
-	public function rerouteBuck(TrumanBuck $buck, $timeout = 0) {
+	public function rerouteBuck(Buck $buck, $timeout = 0) {
 
 		if ($this->log_client_reroute) {
 			$spec = $this->getClient()->getDeskSpec($buck);
-			error_log("{$this} rerouting {$buck} to TrumanDesk<{$spec['host']}:{$spec['port']}>");
+			error_log("{$this} rerouting {$buck} to Desk<{$spec['host']}:{$spec['port']}>");
 		}
 
 		$buck->setRoutingDeskId($this->id);
@@ -369,7 +369,7 @@ class TrumanDesk {
 
 	}
 
-	private function sendBuckToStreams(TrumanBuck $buck, array $streams, $timeout = 0) {
+	private function sendBuckToStreams(Buck $buck, array $streams, $timeout = 0) {
 
 		if (!stream_select($i, $outputs = $streams, $j, $timeout))
 			return null;
@@ -400,7 +400,7 @@ class TrumanDesk {
 		if (is_null($callback))
 			$callback = function() { return true; };
 		else if (!is_callable($callback))
-			TrumanException::throwNew($this, 'Invalid callback');
+			Exception::throwNew($this, 'Invalid callback');
 		$cycles = array();
 		$this->continue = true;
 		do $cycles = array_merge($cycles, $this->tick($callback, $timeout));
@@ -421,7 +421,7 @@ class TrumanDesk {
 		);
 
 		if (!is_resource($process))
-			TrumanException::throwNew($this, 'Unable to open drawer');
+			Exception::throwNew($this, 'Unable to open drawer');
 
 		// get shell PID
 		$status = proc_get_status($process);
@@ -430,21 +430,21 @@ class TrumanDesk {
 		$key = "drawer.php<{$shell_pid}";
 
 		if (!is_resource($stdin = $streams[self::STDIN]))
-			TrumanException::throwNew($this, "{$key}>, Unable to write input");
+			Exception::throwNew($this, "{$key}>, Unable to write input");
 		if (!is_resource($stdout = $streams[self::STDOUT]))
-			TrumanException::throwNew($this, "{$key}>, Unable to read output");
+			Exception::throwNew($this, "{$key}>, Unable to read output");
 		if (!is_resource($stderr = $streams[self::STDERR]))
-			TrumanException::throwNew($this, "{$key}>, Unable to read errors");
+			Exception::throwNew($this, "{$key}>, Unable to read errors");
 
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 
 		// get php PID
-		$getmypid = new TrumanBuck();
-		if (is_null($buck = $this->sendBuckToStreams($getmypid, array($stdin), 5)))
-			TrumanException::throwNew($this, "{$key}>, Unable to write {$buck}");
-		if (is_null($result = $this->receiveResultFromStreams(array($stdout), 5)))
-			TrumanException::throwNew($this, "{$key}>, Unable to read result");
+		$getmypid = new Buck();
+		if (is_null($buck = $this->sendBuckToStreams($getmypid, [$stdin], 5)))
+			Exception::throwNew($this, "{$key}>, Unable to write {$buck}");
+		if (is_null($result = $this->receiveResultFromStreams([$stdout], 5)))
+			Exception::throwNew($this, "{$key}>, Unable to read result");
 		$php_pid = $result->data()->pid;
 
 		$key = "$key,{$php_pid}>";
@@ -458,7 +458,7 @@ class TrumanDesk {
 
 	}
 
-	public function updateClient(TrumanClient $client) {
+	public function updateClient(Client $client) {
 
 		if (!$this->getClient()) {
 			$new_client = $client;
@@ -490,7 +490,7 @@ class TrumanDesk {
 
 		do {
 
-			$args = array($this);
+			$args = [$this];
 
 			if ($still = !is_null($received_buck = $this->receiveBuck($timeout))) {
 				if ($this->log_tick_work)

@@ -1,6 +1,6 @@
-<?
+<? namespace truman;
 
-class TrumanClient {
+class Client {
 
 	const TIMEOUT_DEFAULT = 5;
 
@@ -13,10 +13,10 @@ class TrumanClient {
 	private $timestamp;
 	private $signature;
 
-	public function __construct($desk_specs = array(), $notify_desks = 1) {
+	public function __construct($desk_specs = [], $notify_desks = 1) {
 		$this->channels = array();
 		$this->desk_specs = array();
-		if (is_array($desk_specs) && !TrumanUtil::isKeyedArray($desk_specs))
+		if (is_array($desk_specs) && !Util::isKeyedArray($desk_specs))
 			$this->addDeskSpecs($desk_specs, $notify_desks);
 		else
 			$this->addDeskSpec($desk_specs, $notify_desks);
@@ -30,17 +30,17 @@ class TrumanClient {
 
 	public function addDeskSpec($desk_spec = null, $notify_desks = 1) {
 		if (is_int($desk_spec))
-			$desk_spec = array('port' => $desk_spec);
+			$desk_spec = ['port' => $desk_spec];
 		if (is_string($desk_spec))
 			$desk_spec = parse_url($desk_spec);
 		if (is_null($desk_spec) || !is_array($desk_spec))
-			TrumanException::throwNew($this, 'desc_spec must be an int, string, or array');
+			Exception::throwNew($this, 'desc_spec must be an int, string, or array');
 		if (!isset($desk_spec['host']))
 			$desk_spec['host'] = '127.0.0.1';
 		if (!isset($desk_spec['channels']))
-			$desk_spec['channels'] = array(TrumanBuck::CHANNEL_DEFAULT);
+			$desk_spec['channels'] = [Buck::CHANNEL_DEFAULT];
 		if (!is_array($channels = $desk_spec['channels']))
-			$channels = array($channels);
+			$channels = [$channels];
 
 		$schannels = serialize($desk_spec['channels']);
 		$target = "{$desk_spec['host']}:{$desk_spec['port']}::{$schannels}";
@@ -48,7 +48,7 @@ class TrumanClient {
 
 		foreach ($channels as $channel) {
 			if (!isset($this->channels[$channel]))
-				$this->channels[$channel] = new TrumanChannel($channel, $target);
+				$this->channels[$channel] = new Channel($channel, $target);
 			else
 				$this->channels[$channel]->addTarget($target);
 		}
@@ -80,14 +80,14 @@ class TrumanClient {
 		return $this->signature;
 	}
 
-	public function getDeskSpec(TrumanBuck $buck) {
+	public function getDeskSpec(Buck $buck) {
 		$channel_name = $buck->getChannel();
 		$channel      = $this->channels[$channel_name];
 		$target       = $channel->getTarget($buck);
 		return $this->desk_specs[$target];
 	}
 
-	public function getDeskSocket(TrumanBuck $buck) {
+	public function getDeskSocket(Buck $buck) {
 		$channel_name = $buck->getChannel();
 		$channel      = $this->channels[$channel_name];
 		$target       = $channel->getTarget($buck);
@@ -102,9 +102,9 @@ class TrumanClient {
 
 	public function newNotificationBuck() {
 		$signature = $this->getSignature();
-		return new TrumanBuck(TrumanBuck::CALLABLE_NOOP, array($signature), array(
+		return new Buck(Buck::CALLABLE_NOOP, [$signature], array(
 			'client_signature' => $signature,
-			'priority'         => TrumanBuck::PRIORITY_URGENT
+			'priority'         => Buck::PRIORITY_URGENT
 		));
 	}
 
@@ -116,16 +116,16 @@ class TrumanClient {
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = self::createOrGetSocket($target, $desk_spec);
 				if ($expected !== $socket->send($message, null, $timeout))
-					TrumanException::throwNew($this, "unable to notify {$socket} about new client signature");
+					Exception::throwNew($this, "unable to notify {$socket} about new client signature");
 			}
 			$this->notified = true;
 		}
 	}
 
-	public function sendBuck(TrumanBuck $buck, $timeout = 0) {
+	public function sendBuck(Buck $buck, $timeout = 0) {
 		$socket = $this->getDeskSocket($buck);
 		if (!$socket->sendBuck($buck, null, $timeout))
-			TrumanException::throwNew($this, "Unable to send {$buck} to {$socket}");
+			Exception::throwNew($this, "Unable to send {$buck} to {$socket}");
 		return $buck;
 	}
 
@@ -139,13 +139,13 @@ class TrumanClient {
 
 	public static function createOrGetSocket($target, $desk_spec) {
 		if (!isset(self::$sockets[$target]))
-			self::$sockets[$target] = new TrumanSocket(array(
+			self::$sockets[$target] = new Socket(array(
 				'force_client_mode' => 1
 			) + $desk_spec);
 		return self::$sockets[$target];
 	}
 
-	public static function toSignature(TrumanClient $client) {
+	public static function toSignature(Client $client) {
 		$serialized = serialize($client->getDeskSpecs());
 		$payload    = base64_encode($serialized);
 		return "{$payload}@{$client->timestamp}";
@@ -154,7 +154,7 @@ class TrumanClient {
 	public static function fromSignature($signature) {
 		list($payload, $timestamp) = explode('@', $signature, 2);
 		$specs = @unserialize(base64_decode($payload));
-		$client = new TrumanClient($specs, false);
+		$client = new Client($specs, false);
 		$client->updateInternals($timestamp);
 		return $client;
 	}

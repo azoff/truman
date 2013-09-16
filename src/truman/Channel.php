@@ -1,16 +1,16 @@
-<?
+<? namespace truman;
 
-class TrumanChannel {
+class Channel {
 
 	private $name;
 	private $count;
 	private $targets;
 
-	public function __construct($name, $targets = array()) {
+	public function __construct($name, $targets = []) {
 		$this->count = 0;
 		$this->name = $name;
 		if (!is_array($targets))
-			$targets = array($targets);
+			$targets = [$targets];
 		foreach ($targets as $target)
 			$this->addTarget($target);
 	}
@@ -24,7 +24,7 @@ class TrumanChannel {
 		$this->count++;
 	}
 
-	public function getTarget(TrumanBuck $buck) {
+	public function getTarget(Buck $buck) {
 		$hash  = abs(crc32($buck->getUUID()));
 		$index = $hash % $this->count;
 		return $this->targets[$index];

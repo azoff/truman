@@ -1,6 +1,6 @@
-<?
+<? namespace truman;
 
-class TrumanSocket {
+class Socket {
 
 	private static $_DEFAULT_OPTIONS = array(
 		'host'        => '0.0.0.0', // Bind to all incoming addresses
@@ -24,14 +24,14 @@ class TrumanSocket {
 	private $socket;
 	private $connections = array();
 
-	public function __construct($host_spec, array $options = array()) {
+	public function __construct($host_spec, array $options = []) {
 
 		if (is_int($host_spec))
-			$host_spec = array('port' => $host_spec);
+			$host_spec = ['port' => $host_spec];
 		if (is_string($host_spec))
 			$host_spec = parse_url($host_spec);
 		if (!is_array($host_spec))
-			TrumanException::throwNew($this, 'host_spec must be an int, string, or array');
+			Exception::throwNew($this, 'host_spec must be an int, string, or array');
 
 		$this->options = $host_spec + $options + self::$_DEFAULT_OPTIONS;
 
@@ -64,7 +64,7 @@ class TrumanSocket {
 		$force_client_mode = $this->options['force_client_mode'];
 
 		// server mode (local)
-		if (TrumanUtil::isLocalAddress($this->getHost()) && !$force_client_mode) {
+		if (Util::isLocalAddress($this->getHost()) && !$force_client_mode) {
 
 			if ($this->options['nonblocking'])
 				if (@socket_set_nonblock($this->socket) === false);
@@ -132,7 +132,7 @@ class TrumanSocket {
 		if (!$this->isServer())
 			return false;
 
-		$sockets = array($this->socket);
+		$sockets = [$this->socket];
 
 		$ready = @socket_select($sockets, $i, $j, $timeout);
 
@@ -209,7 +209,7 @@ class TrumanSocket {
 	public function receive($callback = null, $timeout = 0) {
 
 		if ($this->isClient()) {
-			$connections = array($this->socket);
+			$connections = [$this->socket];
 		} else {
 			$this->acceptConnection($timeout);
 			if (!count($connections = $this->connections))
@@ -251,7 +251,7 @@ class TrumanSocket {
 
 	public function send($message, $connection = null, $timeout = 0) {
 
-		$connections = is_resource($connection) ? array($connection) : array($this->socket);
+		$connections = is_resource($connection) ? [$connection] : [$this->socket];
 
 		$ready = @socket_select($i, $connections, $j, $timeout);
 
@@ -269,7 +269,7 @@ class TrumanSocket {
 		$size_limit = $this->options['size_limit'];
 
 		if ($expected_bytes > $size_limit)
-			TrumanException::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
+			Exception::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
 
 		$actual_bytes = @socket_write($connection, $message, $expected_bytes);
 
@@ -285,7 +285,7 @@ class TrumanSocket {
 
 	}
 
-	public function sendBuck(TrumanBuck $buck, $socket = null, $timeout = 0) {
+	public function sendBuck(Buck $buck, $socket = null, $timeout = 0) {
 		$expected = strlen($message = serialize($buck));
 		$actual = $this->send($message, $socket, $timeout);
 		return $expected === $actual;
@@ -303,7 +303,7 @@ class TrumanSocket {
 		$error = socket_strerror($error_code);
 		$msg = "{$msg}. {$error}";
 
-		TrumanException::throwNew($this, $msg);
+		Exception::throwNew($this, $msg);
 
 	}
 

@@ -1,10 +1,10 @@
 <? require_once dirname(__DIR__).'/autoload.php';
 
-function execute(TrumanBuck $buck) {
+function execute(Buck $buck) {
 
 	ob_start();
 	@trigger_error('');
-	TrumanBuck::setEnvContext($buck);
+	Buck::setEnvContext($buck);
 
 	$data['pid']     = PID;
 	$data['buck']    = $buck;
@@ -21,7 +21,7 @@ function execute(TrumanBuck $buck) {
 		$data['output'] = $output;
 	$data['runtime'] += microtime(1);
 
-	TrumanBuck::unsetEnvContext($buck);
+	Buck::unsetEnvContext($buck);
 
 	$passed = true;
 	$data   = (object) $data;
@@ -30,7 +30,7 @@ function execute(TrumanBuck $buck) {
 	else if (isset($data->retval))
 		$passed = (bool) $data->retval;
 
-	print TrumanResult::newInstance($passed, $data)->asXML();
+	print Result::newInstance($passed, $data)->asXML();
 
 }
 
@@ -41,10 +41,10 @@ function tick(array $inputs) {
 
 	$input = trim(fgets($inputs[0]));
 	$buck  = unserialize($input);
-	if ($buck instanceof TrumanBuck)
+	if ($buck instanceof Buck)
 		execute($buck);
 	else
-		error_log("Huh? '{$input}' is not a serialize()'d TrumanBuck");
+		error_log("Huh? '{$input}' is not a serialize()'d Buck");
 
 	return true;
 
@@ -63,8 +63,7 @@ function require_all(array $include_paths) {
 function main(array $argv) {
 	require_all(array_slice($argv, 1));
 	setup_process();
-	$stdin = array(STDIN);
-	do tick($stdin);
+	do tick([STDIN]);
 	while(true);
 }
 

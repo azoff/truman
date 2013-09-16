@@ -1,10 +1,14 @@
 <? require_once dirname(__DIR__) . '/autoload.php';
 
-class TrumanClient_Test extends PHPUnit_Framework_TestCase {
+use truman\Client;
+use truman\Buck;
+use truman\Desk;
+
+class Client_Test extends PHPUnit_Framework_TestCase {
 
 	public function testSignature() {
-		$clientA = new TrumanClient(array(), 0);
-		$clientB = new TrumanClient($port = 12345, false);
+		$clientA = new Client([], 0);
+		$clientB = new Client($port = 12345, false);
 		$this->assertNotEmpty($sig = $clientA->getSignature());
 		$clientA->addDeskSpec($port, false);
 		$this->assertNotEquals($sig, $clientA->getSignature());
@@ -13,15 +17,15 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 	public function testNotifyDesks() {
 
-		$desk = new TrumanDesk($port = 12345);
+		$desk = new Desk($port = 12345);
 
 		// create an "outdated" client by not notifying desks
-		$spec = array("127.0.0.1:{$port}", "localhost:{$port}");
-		$clientA = new TrumanClient($spec, false);
+		$spec = ["127.0.0.1:{$port}", "localhost:{$port}"];
+		$clientA = new Client($spec, false);
 		$clientA->updateInternals();
 
 		// new clients should auto notify any connected desks
-		$clientB = new TrumanClient("127.0.0.1:{$port}");
+		$clientB = new Client("127.0.0.1:{$port}");
 		while($desk->tick());
 		$this->assertEquals($clientB->getSignature(), $desk->getClient()->getSignature());
 
@@ -47,30 +51,30 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 
 		$specs[] = array(
 			'port' => 12346,
-			'channels' => array('channelA', 'channelB')
+			'channels' => ['channelA', 'channelB']
 		);
 
 		$specs[] = array(
 			'port' => 12347,
-			'channels' => array('channelC')
+			'channels' => ['channelC']
 		);
 
-		$bucks[] = new TrumanBuck('foo', array(), array(
+		$bucks[] = new Buck('foo', array(), array(
 			'channel' => $specs[0]['channels'][0]
 		));
 
-		$bucks[] = new TrumanBuck('bar', array(), array(
+		$bucks[] = new Buck('bar', array(), array(
 			'channel' => $specs[0]['channels'][1]
 		));
 
-		$bucks[] = new TrumanBuck('poo', array(), array(
+		$bucks[] = new Buck('poo', array(), array(
 			'channel' => $specs[1]['channels'][0]
 		));
 
 		foreach ($specs as $spec)
-			$desks[] = new TrumanDesk($spec);
+			$desks[] = new Desk($spec);
 
-		$client = new TrumanClient($specs, false);
+		$client = new Client($specs, false);
 
 		foreach ($bucks as $buck)
 			$client->sendBuck($buck);
@@ -105,15 +109,15 @@ class TrumanClient_Test extends PHPUnit_Framework_TestCase {
 			);
 
 		// listening on all interfaces
-		$desk = new TrumanDesk($port);
+		$desk = new Desk($port);
 
 		// explicitly enumerates all interfaces
-		$client = new TrumanClient($specs);
+		$client = new Client($specs);
 
 		// send a buck to each interface
 		foreach ($specs as $spec) {
-			$options = array('channel' => $spec['channels']);
-			$buck = new TrumanBuck('gethostname', array($spec['host']), $options);
+			$options = ['channel' => $spec['channels']];
+			$buck = new Buck('gethostname', [$spec['host']], $options);
 			$client->sendBuck($buck);
 		}
 

@@ -1,6 +1,6 @@
-<?
+<? namespace truman;
 
-class TrumanBuck {
+class Buck {
 
 	const CALLABLE_NOOP = '__NOOP__';
 
@@ -31,15 +31,15 @@ class TrumanBuck {
 		'context'          => '',
 	);
 
-	public function __construct($callable = self::CALLABLE_NOOP, array $args = array(), array $options = array()) {
+	public function __construct($callable = self::CALLABLE_NOOP, array $args = [], array $options = []) {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
 		if (!is_callable($callable, true, $callable_name))
-			TrumanException::throwNew($this, 'Invalid callable passed into '.__METHOD__);
+			Exception::throwNew($this, 'Invalid callable passed into '.__METHOD__);
 
 		$this->args   = $args;
-		$this->kwargs = TrumanUtil::isKeyedArray($args);
+		$this->kwargs = Util::isKeyedArray($args);
 
 		$this->callable = $options['allow_closures'] ? $callable : $callable_name;
 		$this->priority = (int) $options['priority'];
@@ -81,7 +81,7 @@ class TrumanBuck {
 
 	public function getClient() {
 		if (strlen($sig = $this->getClientSignature()))
-			return TrumanClient::fromSignature($sig);
+			return Client::fromSignature($sig);
 		return null;
 	}
 
@@ -119,12 +119,12 @@ class TrumanBuck {
 			if (is_array($this->callable)) {
 				$class  = $this->callable[0];
 				$method = $this->callable[1];
-				$function = new ReflectionMethod($class, $method);
+				$function = new \ReflectionMethod($class, $method);
 			} else if (strpos($this->callable, '::') !== false) {
 				list($class, $method) = explode('::', $this->callable, 2);
-				$function = new ReflectionMethod($class, $method);
+				$function = new \ReflectionMethod($class, $method);
 			} else {
-				$function = new ReflectionFunction($this->callable);
+				$function = new \ReflectionFunction($this->callable);
 			}
 
 			$args = array();
@@ -147,9 +147,9 @@ class TrumanBuck {
 
 			return $function->invokeArgs($args) ;
 
-		} catch(ReflectionException $ex) {
+		} catch(\ReflectionException $ex) {
 
-			TrumanException::throwNew($this, "Unable to invoke '{$this->callable}'", $ex);
+			Exception::throwNew($this, "Unable to invoke '{$this->callable}'", $ex);
 
 		}
 
@@ -167,11 +167,11 @@ class TrumanBuck {
 		return $_ENV[self::CONTEXT_KEY];
 	}
 
-	public static function setEnvContext(TrumanBuck $buck) {
+	public static function setEnvContext(Buck $buck) {
 		$_ENV[self::CONTEXT_KEY] = $buck->getContext();
 	}
 
-	public static function unsetEnvContext(TrumanBuck $buck) {
+	public static function unsetEnvContext(Buck $buck) {
 		unset($_ENV[self::CONTEXT_KEY]);
 	}
 
