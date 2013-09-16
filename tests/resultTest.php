@@ -1,20 +1,23 @@
 <? require_once dirname(__DIR__) . '/autoload.php';
 
-class TrumanResult_Test extends PHPUnit_Framework_TestCase {
+use truman\Result;
+
+class Result_Test extends PHPUnit_Framework_TestCase {
 	
 	public function testTrue() {
-		$result = TrumanResult::newInstance(true);
-		$this->assertTrue((bool)$result);
+		$result = new Result(true);
+		$this->assertTrue((bool)$result->was_successful());
+		$this->assertFalse((bool)$result->was_erroneous());
 	}
 
 	public function testFalse() {
-		$result = TrumanResult::newInstance(false);
-		$this->assertFalse((bool)$result);
+		$result = new Result(false);
+		$this->assertFalse((bool)$result->was_successful());
+		$this->assertTrue((bool)$result->was_erroneous());
 	}
 
 	public function testData() {
-		$data = 'hello world';
-		$result = TrumanResult::newInstance(true, $data);
+		$result = new Result(true, $data = 'hello world');
 		$this->assertEquals($result->data(), $data);
 	}
 

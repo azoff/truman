@@ -1,11 +1,14 @@
 <? require_once dirname(__DIR__) . '/autoload.php';
 
-class TrumanHash_Test extends PHPUnit_Framework_TestCase {
+use truman\Buck;
+use truman\Channel;
+
+class Hash_Test extends PHPUnit_Framework_TestCase {
 
 	public function testHash() {
-		$buckA = new TrumanBuck();
-		$buckB = new TrumanBuck();
-		$hash = new TrumanChannel('test', array('a', 'b', 'c'));
+		$buckA = new Buck();
+		$buckB = new Buck();
+		$hash = new Channel('test', ['a', 'b', 'c']);
 		$this->assertEquals(
 			$hash->getTarget($buckA),
 			$hash->getTarget($buckB)

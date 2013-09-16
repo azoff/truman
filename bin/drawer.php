@@ -1,5 +1,8 @@
 <? require_once dirname(__DIR__).'/autoload.php';
 
+use truman\Buck;
+use truman\Result;
+
 function execute(Buck $buck) {
 
 	ob_start();
@@ -30,7 +33,7 @@ function execute(Buck $buck) {
 	else if (isset($data->retval))
 		$passed = (bool) $data->retval;
 
-	print Result::newInstance($passed, $data)->asXML();
+	print serialize(new Result($passed, $data));
 
 }
 

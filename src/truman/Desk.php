@@ -310,20 +310,15 @@ class Desk {
 
 		foreach ($inputs as $input) {
 
-			if (!strlen($xml = trim(fgets($input)))) {
-				error_log("result: {$xml}");
+			if (!strlen($serialized = trim(fgets($input)))) {
+				error_log("result: {$serialized}");
 				continue;
 			}
 
 			$key = array_pop(array_keys($streams, $input));
-
-			try {
-				$result = new Result($xml);
-			} catch(Exception $ex) {
-				$result = Result::newInstance(false, (object) array(
-					'error' => $xml
-				));
-			}
+			$result = @unserialize($serialized);
+			if (!$result)
+				$result = new Result(false, (object) ['error' => $serialized]);
 
 			$data = $result->data();
 
@@ -488,6 +483,8 @@ class Desk {
 
 		$cycles = array();
 
+		$callback = is_callable($callback) ? $callback : null;
+
 		do {
 
 			$args = [$this];
@@ -508,13 +505,13 @@ class Desk {
 
 			if ($work = !is_null($received_result = $this->receiveResult($timeout))) {
 				if ($this->log_tick_work)
-					error_log("{$this} received " . $received_result->__toString());
+					error_log("{$this} received {$received_result}");
 			}
 
 			$args[] = $received_result;
 
 			if ($continue = $still || $doing || $work) {
-				if (is_callable($callback))
+				if ($callback)
 					$cycles[] = call_user_func_array($callback, $args);
 				else
 					$cycles[] = $args;

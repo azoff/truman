@@ -5,8 +5,6 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Implement namespaces
-- Refactor Results to be simpler
 - Test context
 - Add wrapper class
 - Test reap
