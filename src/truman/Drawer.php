@@ -63,7 +63,7 @@ class Drawer {
 
 	}
 
-	private function execute(Buck $buck) {
+	public function execute(Buck $buck) {
 
 		$pid = getmypid();
 		$context = $buck->getContext();

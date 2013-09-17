@@ -2,15 +2,31 @@
 
 use truman\Util;
 use truman\Drawer;
+use truman\Buck;
 
 class Drawer_Test extends PHPUnit_Framework_TestCase {
 
 
-	function testConstruct() {
+	private static function getThreadContext() {
+		$buck = new Buck();
+		return $buck->getContext();
+	}
+
+	public function testConstruct() {
 		$include = Util::tempPhpFile('function foo(){}');
 		$drawer = new Drawer([$include]);
 		$this->assertTrue(function_exists('foo'));
 		unset($drawer);
+	}
+
+	public function testExecute() {
+		$context = 'test';
+		$buck    = new Buck(['self', 'getThreadContext'], [], ['context' => $context]);
+		$drawer  = new Drawer();
+		$result  = $drawer->execute($buck);
+		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertObjectHasAttribute('result', $data);
+		$this->assertEquals($context, $data->result);
 	}
 
 	public function poll(array $inputs) {
@@ -25,9 +41,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 
 	}
 
-	private function execute(Buck $buck) {
 
-	}
 
 	public static function main(array $argv, $input) {
 
