@@ -1,43 +1,46 @@
-<? require_once dirname(__DIR__) . '/autoload.php';
+<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\Client;
 use truman\Buck;
 use truman\Desk;
+use truman\ResultAccumulator;
 
 class Client_Test extends PHPUnit_Framework_TestCase {
 
 	public function testSignature() {
-		$clientA = new Client([], 0);
-		$clientB = new Client($port = 12345, false);
+		$options = ['desk_notification_timeout' => -1];
+		$clientA = new Client([], $options);
+		$clientB = new Client($port = 12345, $options);
 		$this->assertNotEmpty($sig = $clientA->getSignature());
-		$clientA->addDeskSpec($port, false);
+		$clientA->addDeskSpec($port, -1);
 		$this->assertNotEquals($sig, $clientA->getSignature());
 		$this->assertEquals($clientB->getDeskSpecs(), $clientA->getDeskSpecs());
 	}
 
 	public function testNotifyDesks() {
 
-		$desk = new Desk($port = 12345);
+		$accumulator = new ResultAccumulator();
+		$desk = new Desk($port = 12345, $accumulator->getExpectDeskOptions());
 
 		// create an "outdated" client by not notifying desks
 		$spec = ["127.0.0.1:{$port}", "localhost:{$port}"];
-		$clientA = new Client($spec, false);
+		$clientA = new Client($spec, ['desk_notification_timeout' => -1]);
 		$clientA->updateInternals();
 
 		// new clients should auto notify any connected desks
 		$clientB = new Client("127.0.0.1:{$port}");
-		while($desk->tick());
+		$desk->start();
 		$this->assertEquals($clientB->getSignature(), $desk->getClient()->getSignature());
 
 		// outdated clients shouldn't override newer clients
 		$clientA->notifyDesks();
-		while($desk->tick());
+		$desk->start();
 		$this->assertNotEquals($clientA->getSignature(), $desk->getClient()->getSignature());
 
 		// existing client updates should be reflected
 		$spec['host'] = '127.0.0.1';
 		$clientB->addDeskSpec("localhost:{$port}");
-		while($desk->tick());
+		$desk->start();
 		$this->assertEquals(
 			$clientB->getDeskCount(),
 			$desk->getClient()->getDeskCount()
@@ -74,7 +77,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 		foreach ($specs as $spec)
 			$desks[] = new Desk($spec);
 
-		$client = new Client($specs, false);
+		$client = new Client($specs, ['desk_notification_timeout' => -1]);
 
 		foreach ($bucks as $buck)
 			$client->sendBuck($buck);
@@ -108,9 +111,6 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 				'channels' => "channel_{$i}"
 			);
 
-		// listening on all interfaces
-		$desk = new Desk($port);
-
 		// explicitly enumerates all interfaces
 		$client = new Client($specs);
 
@@ -124,12 +124,16 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 		// capture all the results
 		$results = array();
 		$expected = count($specs);
-		$desk->start(function($desk, $in, $out, $result) use (&$results, $expected) {
-			if (!is_null($result))
+
+		// start the desk
+		$desk = Desk::startNew($port, [
+			'result_received_handler' => function(Result $result, Desk $desk)
+				use (&$results, $expected) {
 				$results[] = $result;
-			if (count($results) >= $expected)
-				$desk->stop();
-		});
+				if (count($results) >= $expected)
+					$desk->stop();
+			}
+		]);
 
 		$desk->__destruct();
 

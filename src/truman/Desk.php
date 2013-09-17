@@ -27,6 +27,10 @@ class Desk {
 	private $log_dropped_bucks;
 	private $log_tick_work;
 
+	private $buck_received_handler;
+	private $buck_processed_handler;
+	private $result_received_handler;
+
 	private static $_KNOWN_HOSTS = array();
 
 	private static $_DESCRIPTORS = array(
@@ -44,7 +48,10 @@ class Desk {
 		'log_client_updates' => true,
 		'log_client_reroute' => true,
 		'log_dropped_bucks'  => true,
-		'log_tick_work'      => true
+		'log_tick_work'      => true,
+		'buck_received_handler'   => null,
+		'buck_processed_handler'  => null,
+		'result_received_handler' => null,
 	);
 
 	public function __construct($inbound_host_spec = null, array $options = []) {
@@ -70,6 +77,22 @@ class Desk {
 		$this->log_client_reroute = (bool) $options['log_client_reroute'];
 		$this->log_dropped_bucks  = (bool) $options['log_dropped_bucks'];
 		$this->log_tick_work      = (bool) $options['log_tick_work'];
+
+		if (!is_null($handler = $options['buck_received_handler'])) {
+			if (!is_callable($handler))
+				Exception::throwNew($this, 'Invalid handler passed for bucks received');
+			else $this->buck_received_handler = $handler;
+		}
+		if (!is_null($handler = $options['buck_processed_handler'])) {
+			if (!is_callable($handler))
+				Exception::throwNew($this, 'Invalid handler passed for bucks processed');
+			else $this->buck_processed_handler = $handler;
+		}
+		if (!is_null($handler = $options['result_received_handler'])) {
+			if (!is_callable($handler))
+				Exception::throwNew($this, 'Invalid handler passed for results received');
+			else $this->result_received_handler = $handler;
+		}
 
 		if (!is_array($includes = $options['include']))
 			$includes = [$includes];
@@ -246,6 +269,9 @@ class Desk {
 			return null;
 		}
 
+		// ensure that the children streams are valid
+		$this->reapDrawers();
+
 		// if sending to stream fails, return null
 		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
@@ -326,14 +352,14 @@ class Desk {
 				if ($data) {
 					if (isset($data->error)) {
 						if (is_array($data->error))
-							error_log("{$this} {$key}, received error with message '{$data->error['message']}' in {$data->error['file']}:{$data->error['line']}");
+							error_log("{$this} received error with message '{$data->error['message']}' in {$data->error['file']}:{$data->error['line']} from {$key}");
 						else
-							error_log("{$this} {$key}, received error with message '{$data->error}'");
+							error_log("{$this} received error with message '{$data->error}' from {$key}");
 					}
 					if (isset($data->exception))
-						error_log("{$this} {$key}, received {$data->exception}");
+						error_log("{$this} received {$data->exception} from {$key}");
 				} else {
-					error_log("{$this} {$key}, received empty result data");
+					error_log("{$this} received empty result data from {$key}");
 				}
 			}
 
@@ -366,33 +392,19 @@ class Desk {
 
 	private function sendBuckToStreams(Buck $buck, array $streams, $timeout = 0) {
 
-		if (!stream_select($i, $outputs = $streams, $j, $timeout))
+		if (!stream_select($i, $streams, $j, $timeout))
 			return null;
 
-		$key = array_rand($outputs, 1);
-		$output = $outputs[$key];
+		// pick a random available drawer
+		$key = array_rand($streams, 1);
+		$stream = $streams[$key];
 
-		$data     = serialize($buck) . "\n";
-		$expected = strlen($data);
-		$actual   = 0;
-
-		do $actual += fputs($output, $data);
-		while ($actual !== $expected);
-
-		return $buck;
+		return Util::sendPhpObjectToStream($buck, $stream);
 
 	}
 
-	public function start($callback = null, $timeout = 0) {
-		if (is_null($callback))
-			$callback = function() { return true; };
-		else if (!is_callable($callback))
-			Exception::throwNew($this, 'Invalid callback');
-		$cycles = array();
-		$this->continue = true;
-		do $cycles = array_merge($cycles, $this->tick($callback, $timeout));
-		while($this->continue);
-		return $cycles;
+	public function start($timeout = 0) {
+		while($this->tick($timeout));
 	}
 
 	public function stop() {
@@ -469,54 +481,43 @@ class Desk {
 
 	}
 
-	public function tick($callback = null, $timeout = 0) {
+	public function tick($timeout = 0) {
 
-		$this->reapDrawers();
+		$this->continue = true;
 
-		$cycles = array();
+		if (!is_null($received_buck = $this->receiveBuck($timeout))) {
+			if ($this->log_tick_work)
+				error_log("{$this} received {$received_buck}");
+			if ($this->buck_received_handler)
+				call_user_func($this->buck_received_handler, $received_buck, $this);
+		}
 
-		$callback = is_callable($callback) ? $callback : null;
+		if (!is_null($processed_buck = $this->processBuck($timeout))) {
+			if ($this->log_tick_work)
+				error_log("{$this} processed {$processed_buck}");
+			if ($this->buck_processed_handler)
+				call_user_func($this->buck_processed_handler, $processed_buck, $this);
+		}
 
-		do {
+		if (!is_null($received_result = $this->receiveResult($timeout))) {
+			if ($this->log_tick_work)
+				error_log("{$this} received {$received_result}");
+			if ($this->result_received_handler)
+				call_user_func($this->result_received_handler, $received_result, $this);
+		}
 
-			$args = [$this];
-
-			if ($still = !is_null($received_buck = $this->receiveBuck($timeout))) {
-				if ($this->log_tick_work)
-					error_log("{$this} received {$received_buck}");
-			}
-
-			$args[] = $received_buck;
-
-			if ($doing = !is_null($processed_buck = $this->processBuck($timeout))) {
-				if ($this->log_tick_work)
-					error_log("{$this} processed {$processed_buck}");
-			}
-
-			$args[] = $processed_buck;
-
-			if ($work = !is_null($received_result = $this->receiveResult($timeout))) {
-				if ($this->log_tick_work)
-					error_log("{$this} received {$received_result}");
-			}
-
-			$args[] = $received_result;
-
-			if ($continue = $still || $doing || $work) {
-				if ($callback)
-					$cycles[] = call_user_func_array($callback, $args);
-				else
-					$cycles[] = $args;
-			}
-
-		} while ($continue && $this->continue);
-
-		return $cycles;
+		return $this->continue;
 
 	}
 
 	public function waitingCount() {
 		return $this->waiting->count();
+	}
+
+	public static function startNew($inbound_host_spec = null, array $options = []) {
+		$desk = new Desk($inbound_host_spec, $options);
+		$desk->start();
+		return $desk;
 	}
 
 }

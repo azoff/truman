@@ -2,18 +2,22 @@
 
 class Drawer {
 
+	const KILLCODE = '__DRAWER_KILL__';
+
 	private $options;
 
 	private static $_DEFAULT_OPTIONS = [
 		'log_errors'         => true,
 		'log_bucks_received' => true,
-		'timeout'            => 0
+		'timeout'            => 0,
+		'stream_input'       => STDIN,
+		'stream_output'      => STDOUT,
 	];
 
-	public static function main(array $argv, array $inputs, array $options = []) {
+	public static function main(array $argv, array $options = []) {
 		$reqs   = array_slice($argv, 1);
 		$drawer = new Drawer($reqs, $options);
-		return $drawer->poll($inputs);
+		return $drawer->poll();
 	}
 
 	public function __construct(array $requirements = [], array $options = []) {
@@ -28,9 +32,9 @@ class Drawer {
 	}
 
 
-	public function poll(array $inputs) {
+	public function poll() {
 		declare(ticks = 1);
-		do $status = $this->tick($inputs);
+		do $status = $this->tick();
 		while($status < 0);
 		return $status;
 	}
@@ -41,9 +45,12 @@ class Drawer {
 		return $code;
 	}
 
-	private function tick(array $streams) {
+	public function tick() {
 
-		if (!stream_select($inputs = $streams, $i, $j, $this->options['timeout']))
+		$output = $this->options['stream_output'];
+		$inputs = [$this->options['stream_input']];
+
+		if (!stream_select($inputs, $i, $j, $this->options['timeout']))
 			return -1;
 
 		$input = fgets(reset($inputs));
@@ -56,10 +63,10 @@ class Drawer {
 		else return $this->log('received unrecognized input, ignoring...', 'errors');
 
 		$result = $this->execute($buck);
+		$result = Util::sendPhpObjectToStream($result, $output);
+		$data   = $result->data();
 
-		print(serialize($result) . "\n");
-
-		return -1;
+		return isset($data->retval) && $data->retval === self::KILLCODE ? 0 : -1;
 
 	}
 

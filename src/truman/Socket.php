@@ -123,7 +123,6 @@ class Socket {
 		if (is_resource($this->socket)) {
 			\socket_set_block($this->socket);
 			\socket_set_option($this->socket, SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 1]);
-			\socket_shutdown($this->socket);
 			\socket_close($this->socket);
 		}
 		foreach ($this->connections as $connection)

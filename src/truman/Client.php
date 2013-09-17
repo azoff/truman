@@ -4,8 +4,8 @@ class Client {
 
 	const TIMEOUT_DEFAULT = 5;
 
-	private static $sockets = array();
-
+	private $sockets;
+	private $options;
 	private $channels;
 	private $desk_specs;
 	private $dirty;
@@ -13,22 +13,38 @@ class Client {
 	private $timestamp;
 	private $signature;
 
-	public function __construct($desk_specs = [], $notify_desks = 1) {
-		$this->channels = array();
-		$this->desk_specs = array();
+	private static $_DEFAULT_OPTIONS = [
+		'log_sends' => true,
+		'desk_notification_timeout' => 0
+	];
+
+	public function __construct($desk_specs = null, array $options = []) {
+		$this->sockets    = [];
+		$this->channels   = [];
+		$this->desk_specs = [];
+		$this->options = $options + self::$_DEFAULT_OPTIONS;
+		$desk_notification_timeout = $this->options['desk_notification_timeout'];
 		if (is_array($desk_specs) && !Util::isKeyedArray($desk_specs))
-			$this->addDeskSpecs($desk_specs, $notify_desks);
-		else
-			$this->addDeskSpec($desk_specs, $notify_desks);
+			$this->addDeskSpecs($desk_specs, $desk_notification_timeout);
+		else if (!is_null($desk_specs))
+			$this->addDeskSpec($desk_specs, $desk_notification_timeout);
 	}
 
 	public function __toString() {
 		$count = $this->getDeskCount();
-		$sig = substr($this->getSignature(), 24);
+		$sig = substr($this->getSignature(), -22);
 		return "Client<{$sig}>[{$count}]";
 	}
 
-	public function addDeskSpec($desk_spec = null, $notify_desks = 1) {
+	function __destruct() {
+		foreach ($this->sockets as &$socket) {
+			$socket->__destruct();
+			unset($socket);
+		}
+		$this->sockets = [];
+	}
+
+	public function addDeskSpec($desk_spec = null, $desk_notification_timeout = 0) {
 		if (is_int($desk_spec))
 			$desk_spec = ['port' => $desk_spec];
 		if (is_string($desk_spec))
@@ -55,16 +71,13 @@ class Client {
 
 		$this->dirty    = true;
 		$this->notified = false;
-
-		if ($notify_desks > 0)
-			$this->notifyDesks($notify_desks);
+		$this->notifyDesks($desk_notification_timeout);
 	}
 
-	public function addDeskSpecs(array $desk_specs, $notify_desks = 1) {
+	public function addDeskSpecs(array $desk_specs, $desk_notification_timeout = 0) {
 		foreach ($desk_specs as $desk_spec)
-			$this->addDeskSpec($desk_spec, 0);
-		if ($notify_desks > 0)
-			$this->notifyDesks($notify_desks);
+			$this->addDeskSpec($desk_spec, -1);
+		$this->notifyDesks($desk_notification_timeout);
 	}
 
 	public function getDeskCount() {
@@ -92,7 +105,7 @@ class Client {
 		$channel      = $this->channels[$channel_name];
 		$target       = $channel->getTarget($buck);
 		$desk_spec    = $this->desk_specs[$target];
-		return self::createOrGetSocket($target, $desk_spec);
+		return $this->createOrGetSocket($target, $desk_spec);
 	}
 
 	public function getTimestamp() {
@@ -108,13 +121,14 @@ class Client {
 		));
 	}
 
-	public function notifyDesks($timeout = 5) {
+	public function notifyDesks($timeout = 0) {
+		if ($timeout < 0) return;
 		if (isset($this->notified) && !$this->notified) {
 			$buck = $this->newNotificationBuck();
 			$message = serialize($buck);
 			$expected = strlen($message);
 			foreach ($this->desk_specs as $target => $desk_spec) {
-				$socket = self::createOrGetSocket($target, $desk_spec);
+				$socket = $this->createOrGetSocket($target, $desk_spec);
 				if ($expected !== $socket->send($message, null, $timeout))
 					Exception::throwNew($this, "unable to notify {$socket} about new client signature");
 			}
@@ -126,6 +140,8 @@ class Client {
 		$socket = $this->getDeskSocket($buck);
 		if (!$socket->sendBuck($buck, null, $timeout))
 			Exception::throwNew($this, "Unable to send {$buck} to {$socket}");
+		else if ($this->options['log_sends'])
+			error_log("{$this} sent {$buck} to {$socket}");
 		return $buck;
 	}
 
@@ -137,12 +153,12 @@ class Client {
 		}
 	}
 
-	public static function createOrGetSocket($target, $desk_spec) {
-		if (!isset(self::$sockets[$target]))
-			self::$sockets[$target] = new Socket(array(
-				'force_client_mode' => 1
-			) + $desk_spec);
-		return self::$sockets[$target];
+	public function createOrGetSocket($target, $desk_spec) {
+		if (!isset($this->sockets[$target])) {
+			$required = ['force_client_mode' => 1];
+			$this->sockets[$target] = new Socket($required + $desk_spec);
+		}
+		return $this->sockets[$target];
 	}
 
 	public static function toSignature(Client $client) {
@@ -154,7 +170,7 @@ class Client {
 	public static function fromSignature($signature) {
 		list($payload, $timestamp) = explode('@', $signature, 2);
 		$specs = unserialize(base64_decode($payload));
-		$client = new Client($specs, false);
+		$client = new Client($specs, ['desk_notification_timeout' => -1]);
 		$client->updateInternals($timestamp);
 		return $client;
 	}

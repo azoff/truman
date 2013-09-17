@@ -1,4 +1,4 @@
-<? require_once dirname(__DIR__) . '/autoload.php';
+<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\Buck;
 use truman\Channel;

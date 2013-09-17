@@ -2,13 +2,31 @@
 
 class Util {
 
-	public static function tempPhpFile($content) {
-		$dir = '/tmp';
-		$prefix = 'phpunit_desktest_';
+	public static function tempFifo($mode = 0777) {
+		$path = self::tempFilePath('temp_fifo_', 'pipe', $mode);
+		posix_mkfifo($path, $mode);
+		return $path;
+	}
+
+	public static function tempFilePath($prefix, $extension, $dir = '/tmp') {
 		$path = tempnam($dir, $prefix);
-		rename($path, $path = "{$path}.php");
+		rename($path, $path = "{$path}.{$extension}");
+		return $path;
+	}
+
+	public static function tempPhpFile($content) {
+		$path = self::tempFilePath('temp_php_', 'php');
 		file_put_contents($path, "<?php {$content} ?>");
 		return $path;
+	}
+
+	public static function sendPhpObjectToStream($object, $stream) {
+		$data     = serialize($object) . "\n";
+		$expected = strlen($data);
+		$actual   = 0;
+		do $actual += fputs($stream, $data);
+		while ($actual !== $expected);
+		return $object;
 	}
 
 	public static function isKeyedArray(array $to_check) {
