@@ -12,8 +12,8 @@ class Result {
 	public function __toString() {
 		$data = $this->data() ?: new \stdClass();
 		$buck = isset($data->buck) ? $data->buck : '(empty)';
-		$stat = $this->is_successful() ? 'successful' : 'erroneous';
-		return __CLASS__."<{$buck} => {$stat}>";
+		$stat = $this->was_successful() ? 'successful' : 'erroneous';
+		return "Result<{$buck} => {$stat}>";
 	}
 
 	public function data() {
@@ -21,7 +21,7 @@ class Result {
 	}
 
 	public function was_successful() {
-		return (bool) $this->success;
+		return (bool) $this->successful;
 	}
 
 	public function was_erroneous() {

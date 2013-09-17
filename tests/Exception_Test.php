@@ -1,5 +1,6 @@
 <? require_once dirname(__DIR__) . '/autoload.php';
 
+use truman\Buck;
 use truman\Exception;
 
 class Exception_Test extends PHPUnit_Framework_TestCase {

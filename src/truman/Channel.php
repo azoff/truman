@@ -16,7 +16,7 @@ class Channel {
 	}
 
 	public function __toString() {
-		return __CLASS__."<{$this->name}>[{$this->count}]";
+		return "Channel<{$this->name}>[{$this->count}]";
 	}
 
 	public function addTarget($target) {

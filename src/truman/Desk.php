@@ -99,7 +99,7 @@ class Desk {
 
 	public function __toString() {
 		$count = $this->drawerCount();
-		return __CLASS__."<{$this->inbound_socket}>[{$count}]";
+		return "Desk<{$this->inbound_socket}>[{$count}]";
 	}
 
 	public function drawerCount() {
@@ -161,11 +161,11 @@ class Desk {
 		return !is_numeric(posix_getsid($pid));
 	}
 
-	public function killDrawer($key) {
+	public function killDrawer($key, $signal = 15) {
 
 		// send SIGTERM to all child processes
-		posix_kill($this->shell_pids[$key], SIGTERM);
-		posix_kill($this->php_pids[$key], SIGTERM);
+		posix_kill($this->shell_pids[$key],    $signal);
+		posix_kill($this->php_pids[$key],      $signal);
 
 		// close all resources pointing at those processes
 		fclose($this->stdins[$key]);
@@ -286,7 +286,7 @@ class Desk {
 		if (!strlen($serialized = $this->inbound_socket->receive(null, $timeout)))
 			return null;
 
-		$buck = @unserialize($serialized);
+		$buck = unserialize($serialized);
 		if (!($buck instanceof Buck)) {
 			if ($this->log_socket_errors)
 				error_log("{$this} {$this->inbound_socket}, '{$serialized}' is not a serialize()'d Buck");
@@ -305,20 +305,20 @@ class Desk {
 
 	private function receiveResultFromStreams(array $streams, $timeout = 0) {
 
-		if (!($r = stream_select($inputs = $streams, $i, $j, $timeout)))
+		if (!stream_select($inputs = $streams, $i, $j, $timeout))
 			return null;
 
 		foreach ($inputs as $input) {
 
-			if (!strlen($serialized = trim(fgets($input)))) {
-				error_log("result: {$serialized}");
-				continue;
-			}
-
+			$serialized = trim(stream_get_contents($input));
 			$key = array_pop(array_keys($streams, $input));
-			$result = @unserialize($serialized);
+
+			if (!isset($serialized{0}))
+				continue;
+
+			$result = unserialize($serialized);
 			if (!$result)
-				$result = new Result(false, (object) ['error' => $serialized]);
+				$result = new Result(false, (object) ['exception' => "malformed syntax: {$serialized}"]);
 
 			$data = $result->data();
 
@@ -369,25 +369,17 @@ class Desk {
 		if (!stream_select($i, $outputs = $streams, $j, $timeout))
 			return null;
 
-		foreach ($outputs as $output) {
+		$key = array_rand($outputs, 1);
+		$output = $outputs[$key];
 
-			$data     = serialize($buck) . "\n";
-			$expected = strlen($data);
-			$actual   = fputs($output, $data);
+		$data     = serialize($buck) . "\n";
+		$expected = strlen($data);
+		$actual   = 0;
 
-			if ($actual !== $expected) {
-				if ($this->log_drawer_errors){
-					$key = array_pop(array_keys($streams, $output));
-					error_log("{$this} {$key}, unable to write {$buck}");
-				}
-				continue;
-			}
+		do $actual += fputs($output, $data);
+		while ($actual !== $expected);
 
-			return $buck;
-
-		}
-
-		return null;
+		return $buck;
 
 	}
 

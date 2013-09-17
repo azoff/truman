@@ -4,8 +4,6 @@ class Buck {
 
 	const CALLABLE_NOOP = '__NOOP__';
 
-	const CONTEXT_KEY = '__TRUMAN_CONTEXT__';
-
 	const CHANNEL_DEFAULT = 'default';
 
 	const PRIORITY_LOW     = 1024;
@@ -28,7 +26,7 @@ class Buck {
 		'channel'          => self::CHANNEL_DEFAULT,
 		'allow_closures'   => false,
 		'client_signature' => '',
-		'context'          => '',
+		'context'          => null,
 	);
 
 	public function __construct($callable = self::CALLABLE_NOOP, array $args = [], array $options = []) {
@@ -48,18 +46,24 @@ class Buck {
 		$this->client_signature = $options['client_signature'];
 		$this->channel = $options['channel'];
 
-		if (strlen($options['context']))
-			$this->context = $options['context'];
-		else if ($envContext = self::getEnvContext())
-			$this->context = $envContext;
-		else
+		// start with user-supplied context or the thread's context; use the seed if we can't find one.
+		if (is_null($context = $options['context']) && is_null($context = self::getThreadContext(getmypid())))
 			$this->context = $this->calculateSeed();
+		// if we found a context string, make sure it is valid
+		else if (is_string($context) && strlen($context = trim($context)))
+			$this->context = $context;
+		// if we found a context Buck, use the buck's context string
+		else if ($context instanceof Buck)
+			$this->context = $context->getContext();
+		// empty string, or some other data type
+		else
+			Exception::throwNew($this, 'Encountered invalid context in '.__METHOD__);
 
 	}
 
 	public function __toString() {
 		$uuid = $this->getUUID();
-		return __CLASS__."<{$uuid}>";
+		return "Buck<{$uuid}>";
 	}
 
 	public function calculateSeed() {
@@ -76,7 +80,7 @@ class Buck {
 	}
 
 	public function getContext() {
-		return $this->channel;
+		return $this->context;
 	}
 
 	public function getClient() {
@@ -161,18 +165,19 @@ class Buck {
 		$this->routing_desk_id = $routing_desk_id;
 	}
 
-		public static function getEnvContext() {
-		if (!isset($_ENV[self::CONTEXT_KEY]) || !strlen($_ENV[self::CONTEXT_KEY]))
-			return null;
-		return $_ENV[self::CONTEXT_KEY];
+	private static $contexts = [];
+
+	public static function setThreadContext($thread_id, $context) {
+		self::$contexts[$thread_id] = $context;
 	}
 
-	public static function setEnvContext(Buck $buck) {
-		$_ENV[self::CONTEXT_KEY] = $buck->getContext();
+	public static function unsetThreadContext($thread_id) {
+		unset(self::$contexts[$thread_id]);
 	}
 
-	public static function unsetEnvContext(Buck $buck) {
-		unset($_ENV[self::CONTEXT_KEY]);
+	public static function getThreadContext($thread_id) {
+		return isset(self::$contexts[$thread_id]) ?
+			self::$contexts[$thread_id] : null;
 	}
 
 }

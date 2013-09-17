@@ -4,17 +4,9 @@ use truman\Buck;
 use truman\Desk;
 use truman\Socket;
 use truman\Client;
+use truman\Util;
 
 class Desk_Test extends PHPUnit_Framework_TestCase {
-
-	private function newInclude($content) {
-		$dir = '/tmp';
-		$prefix = 'phpunit_desktest_';
-		$path = tempnam($dir, $prefix);
-		rename($path, $path = "{$path}.php");
-		file_put_contents($path, "<?php {$content} ?>");
-		return $path;
-	}
 
 	public function stopOnResult($desk, $in, $out, $result) {
 		if (!is_null($result))
@@ -23,8 +15,8 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testInclude() {
-		$includes[] = $this->newInclude('function a(){ return "a"; }');
-		$includes[] = $this->newInclude('function b(){ return "b"; }');
+		$includes[] = Util::tempPhpFile('function a(){ return "a"; }');
+		$includes[] = Util::tempPhpFile('function b(){ return "b"; }');
 		$desk = new Desk(null, array(
 			'include' => $includes
 		));
@@ -42,7 +34,6 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		foreach ($includes as $include)
 			unlink($include);
 	}
-
 
 	public function testDeDupe() {
 		$desk   = new Desk();
@@ -89,7 +80,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testException() {
-		$buck = new Buck('Exception::throwNew', ['test', 'test']);
+		$buck = new Buck('truman\Exception::throwNew', ['test', 'test']);
 		$desk = new Desk();
 		$desk->enqueueBuck($buck);
 		$results = $desk->start([$this, 'stopOnResult']);

@@ -25,7 +25,7 @@ class Client {
 	public function __toString() {
 		$count = $this->getDeskCount();
 		$sig = substr($this->getSignature(), 24);
-		return __CLASS__."<{$sig}>[{$count}]";
+		return "Client<{$sig}>[{$count}]";
 	}
 
 	public function addDeskSpec($desk_spec = null, $notify_desks = 1) {
@@ -153,7 +153,7 @@ class Client {
 
 	public static function fromSignature($signature) {
 		list($payload, $timestamp) = explode('@', $signature, 2);
-		$specs = @unserialize(base64_decode($payload));
+		$specs = unserialize(base64_decode($payload));
 		$client = new Client($specs, false);
 		$client->updateInternals($timestamp);
 		return $client;

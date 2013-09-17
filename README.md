@@ -6,6 +6,7 @@ A PHP Framework to defer method calls
 TODO
 ----
 - Test context
+- Use real exceptions
 - Test reap
 - Implement load testing
 - Create an example client/server

@@ -1,5 +1,8 @@
 <? namespace truman;
 
+if (!extension_loaded('sockets'))
+	Exception::throwNew('Sockets Extension Required, see:', 'http://php.net/manual/sockets.setup.php');
+
 class Socket {
 
 	private static $_DEFAULT_OPTIONS = array(
@@ -38,7 +41,7 @@ class Socket {
 		$this->host = $this->options['host'];
 		$this->port = $this->options['port'];
 
-		$this->socket = @socket_create(
+		$this->socket = \socket_create(
 			$this->options['socket_domain'],
 			$this->options['socket_type'],
 			$this->options['socket_protocol']
@@ -49,7 +52,7 @@ class Socket {
 
 		if ($this->options['reuse_port']) {
 
-			$option_set = @socket_set_option(
+			$option_set = \socket_set_option(
 				$this->socket,
 				SOL_SOCKET,
 				SO_REUSEADDR,
@@ -67,10 +70,10 @@ class Socket {
 		if (Util::isLocalAddress($this->getHost()) && !$force_client_mode) {
 
 			if ($this->options['nonblocking'])
-				if (@socket_set_nonblock($this->socket) === false);
+				if (\socket_set_nonblock($this->socket) === false);
 					$this->throwError('Unable to mark socket as non-blocking', $this->socket);
 
-			$bound = @socket_bind(
+			$bound = \socket_bind(
 				$this->socket,
 				$this->getHost(),
 				$this->getPort()
@@ -79,7 +82,7 @@ class Socket {
 			if ($bound === false)
 				$this->throwError("Unable to bind to port {$this->options['port']}", $this->socket);
 
-			$listening = @socket_listen(
+			$listening = \socket_listen(
 				$this->socket,
 				$this->options['max_connections']
 			);
@@ -87,7 +90,7 @@ class Socket {
 			if ($listening === false)
 				$this->throwError("Unable to listen to port {$this->options['port']}", $this->socket);
 
-			if (@socket_getsockname($this->socket, $this->host, $this->port) === false)
+			if (\socket_getsockname($this->socket, $this->host, $this->port) === false)
 				$this->throwError('Unable to get socket name', $this->socket);
 
 			$this->client_mode = false;
@@ -96,7 +99,7 @@ class Socket {
 		// client mode (remote)
 		} else {
 
-			$connected = @socket_connect(
+			$connected = \socket_connect(
 				$this->socket,
 				$this->getHost(),
 				$this->getPort()
@@ -106,7 +109,7 @@ class Socket {
 				$this->throwError("Unable to connect to {$this->options['host']}:{$this->options['port']}",
 					$this->socket);
 
-			if (@socket_getpeername($this->socket, $this->host, $this->port) === false)
+			if (\socket_getpeername($this->socket, $this->host, $this->port) === false)
 				$this->throwError('Unable to get peer name', $this->socket);
 
 			$this->client_mode = false;
@@ -117,14 +120,18 @@ class Socket {
 	}
 
 	public function __destruct() {
-		if (@socket_close($this->socket) === false)
-			$this->throwError('Unable to close socket', $this->socket);
+		if (is_resource($this->socket)) {
+			\socket_set_block($this->socket);
+			\socket_set_option($this->socket, SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 1]);
+			\socket_shutdown($this->socket);
+			\socket_close($this->socket);
+		}
 		foreach ($this->connections as $connection)
 			$this->closeConnection($connection);
 	}
 
 	public function __toString() {
-		return __CLASS__."<{$this->host}:{$this->port}>";
+		return "Socket<{$this->host}:{$this->port}>";
 	}
 
 	public function acceptConnection($timeout = 0) {
@@ -134,7 +141,7 @@ class Socket {
 
 		$sockets = [$this->socket];
 
-		$ready = @socket_select($sockets, $i, $j, $timeout);
+		$ready = \socket_select($sockets, $i, $j, $timeout);
 
 		if ($ready === false)
 			$this->throwError('Unable to detect socket changes');
@@ -142,7 +149,7 @@ class Socket {
 		if ($ready <= 0)
 			return false;
 
-		$connection = @socket_accept($sockets[0]);
+		$connection = \socket_accept($sockets[0]);
 
 		if ($connection === false)
 			$this->throwError('Unable to accept connection', $sockets[0]);
@@ -160,7 +167,7 @@ class Socket {
 		if (!array_key_exists($address, $this->connections))
 			return false;
 
-		if (@socket_close($connection) === false)
+		if (\socket_close($connection) === false)
 			$this->throwError('Unable to close connection', $connection);
 
 		unset($this->connections[$address]);
@@ -170,7 +177,7 @@ class Socket {
 	}
 
 	public function getConnectionAddress($connection) {
-		socket_getpeername($connection, $host, $port);
+		\socket_getpeername($connection, $host, $port);
 		return "{$host}:{$port}";
 	}
 
@@ -216,7 +223,7 @@ class Socket {
 				return false;
 		}
 
-		$ready = @socket_select($connections, $i, $j, $timeout);
+		$ready = \socket_select($connections, $i, $j, $timeout);
 
 		if ($ready === false)
 			$this->throwError('Unable to detect socket changes');
@@ -228,7 +235,7 @@ class Socket {
 
 		foreach ($connections as $connection) {
 
-			$message = socket_read($connection, $read_limit, PHP_NORMAL_READ);
+			$message = \socket_read($connection, $read_limit, PHP_NORMAL_READ);
 
 			// close out sockets that don't provide any data
 			if ($message === false) {
@@ -253,7 +260,7 @@ class Socket {
 
 		$connections = is_resource($connection) ? [$connection] : [$this->socket];
 
-		$ready = @socket_select($i, $connections, $j, $timeout);
+		$ready = \socket_select($i, $connections, $j, $timeout);
 
 		if ($ready === false)
 			$this->throwError('Unable to detect socket changes');
@@ -271,7 +278,7 @@ class Socket {
 		if ($expected_bytes > $size_limit)
 			Exception::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
 
-		$actual_bytes = @socket_write($connection, $message, $expected_bytes);
+		$actual_bytes = \socket_write($connection, $message, $expected_bytes);
 
 		if ($actual_bytes === false)
 			$this->throwError('Unable to write to socket', $connection);
@@ -294,13 +301,13 @@ class Socket {
 	private function throwError($msg, $socket = null) {
 
 		$error_code = is_resource($socket) ?
-			socket_last_error($socket) :
-			socket_last_error();
+			\socket_last_error($socket) :
+			\socket_last_error();
 
 		if ($error_code <= 0)
 			return;
 
-		$error = socket_strerror($error_code);
+		$error = \socket_strerror($error_code);
 		$msg = "{$msg}. {$error}";
 
 		Exception::throwNew($this, $msg);

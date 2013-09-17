@@ -2,6 +2,15 @@
 
 class Util {
 
+	public static function tempPhpFile($content) {
+		$dir = '/tmp';
+		$prefix = 'phpunit_desktest_';
+		$path = tempnam($dir, $prefix);
+		rename($path, $path = "{$path}.php");
+		file_put_contents($path, "<?php {$content} ?>");
+		return $path;
+	}
+
 	public static function isKeyedArray(array $to_check) {
 		return (bool) array_filter(array_keys($to_check), 'is_string');
 	}
@@ -13,7 +22,7 @@ class Util {
 			return false;
 
 		// convert all host names to IP addresses
-		if (!($ip_address = @gethostbyname($host_address)))
+		if (!($ip_address = gethostbyname($host_address)))
 			return false; // unable to convert to an IP address
 
 		// return the obvious host matches early

@@ -1,5 +1,7 @@
 <? namespace truman;
 
+use truman\Buck;
+
 class Exception extends \Exception {
 
 	public static function throwNew($context, $msg = '', \Exception $inner_exception = null) {
