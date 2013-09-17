@@ -11,7 +11,7 @@ TODO
 - Use real exceptions
 - Implement load testing
 - Create an example client/server
-- Add failure-tolerant queue (reload on respawn)
+- Start the monitor project
 - Add wrapper class
 - What happens when a socket fails?
 - Document functions
