@@ -5,9 +5,10 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Test context
+- Test Drawer methods
+- Add context test to Buck_Test
+- Add reap test to Dest_Test
 - Use real exceptions
-- Test reap
 - Implement load testing
 - Create an example client/server
 - Add failure-tolerant queue (reload on respawn)
