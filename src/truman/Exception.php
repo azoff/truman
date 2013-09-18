@@ -4,10 +4,19 @@ use truman\Buck;
 
 class Exception extends \Exception {
 
-	public static function throwNew($context, $msg = '', \Exception $inner_exception = null) {
-		$code  = is_null($inner_exception) ? 0 : $inner_exception->getCode();
-		$msg   = strlen($msg) ? "{$context} '{$msg}'" : "{$context}";
-		throw new Exception($msg, $code, $inner_exception);
+	private $details;
+
+	public function __construct($message, array $details = [], \Exception $previous = null) {
+		if ($this->details = $details) {
+			$details  = json_encode($details, JSON_PRETTY_PRINT);
+			$message .= "\nDetails: {$details}";
+		}
+		$code = is_null($previous) ? 0 : $previous->getCode();
+		parent::__construct($message, $code, $previous);
+	}
+
+	public function getDetails() {
+		return $this->details;
 	}
 
 }

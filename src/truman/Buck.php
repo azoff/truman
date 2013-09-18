@@ -34,7 +34,10 @@ class Buck {
 		$options += self::$_DEFAULT_OPTIONS;
 
 		if (!is_callable($callable, true, $callable_name))
-			Exception::throwNew($this, 'Invalid callable passed into '.__METHOD__);
+			throw new Exception('Invalid callable argument', [
+				'context' => $this,
+				'method'  => __METHOD__
+			]);
 
 		$this->args   = $args;
 		$this->kwargs = Util::isKeyedArray($args);
@@ -57,7 +60,10 @@ class Buck {
 			$this->context = $context->getContext();
 		// empty string, or some other data type
 		else
-			Exception::throwNew($this, 'Encountered invalid context in '.__METHOD__);
+			throw new Exception('Invalid context option', [
+				'context' => $this,
+				'method'  => __METHOD__
+			]);
 
 	}
 
@@ -153,11 +159,13 @@ class Buck {
 
 		} catch(\ReflectionException $ex) {
 
-			Exception::throwNew($this, "Unable to invoke '{$this->callable}'", $ex);
+			throw new Exception('Unable to invoke callable', [
+				'context'  => $this,
+				'callable' => $this->callable,
+				'method'   => __METHOD__
+			], $ex);
 
 		}
-
-		return null;
 
 	}
 

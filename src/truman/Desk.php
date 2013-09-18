@@ -65,7 +65,11 @@ class Desk {
 		if (!is_null($inbound_host_spec)) {
 			$this->inbound_socket = new Socket($inbound_host_spec);
 			if ($this->inbound_socket->isClient())
-				Exception::throwNew($this, 'inbound socket may not run in client mode');
+				throw new Exception('Inbound socket may not run in client mode', [
+					'context' => $this,
+					'socket'  => $this->inbound_socket,
+					'method'  => __METHOD__
+				]);
 		}
 
 		if (strlen($sig = $options['client_signature']))
@@ -80,17 +84,29 @@ class Desk {
 
 		if (!is_null($handler = $options['buck_received_handler'])) {
 			if (!is_callable($handler))
-				Exception::throwNew($this, 'Invalid handler passed for bucks received');
+				throw new Exception('Invalid handler passed for bucks received', [
+					'context' => $this,
+					'handler'  => $handler,
+					'method'  => __METHOD__
+				]);
 			else $this->buck_received_handler = $handler;
 		}
 		if (!is_null($handler = $options['buck_processed_handler'])) {
 			if (!is_callable($handler))
-				Exception::throwNew($this, 'Invalid handler passed for bucks processed');
+				throw new Exception('Invalid handler passed for bucks processed', [
+					'context' => $this,
+					'handler'  => $handler,
+					'method'  => __METHOD__
+				]);
 			else $this->buck_processed_handler = $handler;
 		}
 		if (!is_null($handler = $options['result_received_handler'])) {
 			if (!is_callable($handler))
-				Exception::throwNew($this, 'Invalid handler passed for results received');
+				throw new Exception('Invalid handler passed for results received', [
+					'context' => $this,
+					'handler'  => $handler,
+					'method'  => __METHOD__
+				]);
 			else $this->result_received_handler = $handler;
 		}
 
@@ -420,7 +436,11 @@ class Desk {
 		);
 
 		if (!is_resource($process))
-			Exception::throwNew($this, 'Unable to open drawer');
+			throw new Exception('Unable to open drawer', [
+				'context' => $this,
+				'command' => $this->command,
+				'method'  => __METHOD__
+			]);
 
 		// get shell PID
 		$status = proc_get_status($process);
@@ -429,11 +449,23 @@ class Desk {
 		$key = "drawer.php<{$shell_pid}";
 
 		if (!is_resource($stdin = $streams[self::STDIN]))
-			Exception::throwNew($this, "{$key}>, Unable to write input");
+			throw new Exception('Unable to write to drawer STDIN', [
+				'context' => $this,
+				'drawer'  => "{$key}>",
+				'method'  => __METHOD__
+			]);
 		if (!is_resource($stdout = $streams[self::STDOUT]))
-			Exception::throwNew($this, "{$key}>, Unable to read output");
+			throw new Exception('Unable to read from drawer STDOUT', [
+				'context' => $this,
+				'drawer'  => "{$key}>",
+				'method'  => __METHOD__
+			]);
 		if (!is_resource($stderr = $streams[self::STDERR]))
-			Exception::throwNew($this, "{$key}>, Unable to read errors");
+			throw new Exception('Unable to write from drawer STDERR', [
+				'context' => $this,
+				'drawer'  => "{$key}>",
+				'method'  => __METHOD__
+			]);
 
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
@@ -441,9 +473,17 @@ class Desk {
 		// get php PID
 		$getmypid = new Buck();
 		if (is_null($buck = $this->sendBuckToStreams($getmypid, [$stdin], 5)))
-			Exception::throwNew($this, "{$key}>, Unable to write {$buck}");
+			throw new Exception('Unable to write to send startup Buck to drawer', [
+				'context' => $this,
+				'drawer'  => "{$key}>",
+				'method'  => __METHOD__
+			]);
 		if (is_null($result = $this->receiveResultFromStreams([$stdout], 5)))
-			Exception::throwNew($this, "{$key}>, Unable to read result");
+			throw new Exception('Unable to write to send startup Result from drawer', [
+				'context' => $this,
+				'drawer'  => "{$key}>",
+				'method'  => __METHOD__
+			]);
 		$php_pid = $result->data()->pid;
 
 		$key = "$key,{$php_pid}>";

@@ -50,7 +50,11 @@ class Client {
 		if (is_string($desk_spec))
 			$desk_spec = parse_url($desk_spec);
 		if (is_null($desk_spec) || !is_array($desk_spec))
-			Exception::throwNew($this, 'desc_spec must be an int, string, or array');
+			throw new Exception('Desk spec must be an int, string, or array', [
+				'context'   => $this,
+				'desk_spec' => $desk_spec,
+				'method'    => __METHOD__
+			]);
 		if (!isset($desk_spec['host']))
 			$desk_spec['host'] = '127.0.0.1';
 		if (!isset($desk_spec['channels']))
@@ -130,7 +134,11 @@ class Client {
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = $this->createOrGetSocket($target, $desk_spec);
 				if ($expected !== $socket->send($message, null, $timeout))
-					Exception::throwNew($this, "unable to notify {$socket} about new client signature");
+					throw new Exception('Unable to notify socket about new client signature', [
+						'context' => $this,
+						'socket'  => $socket,
+						'method'  => __METHOD__
+					]);
 			}
 			$this->notified = true;
 		}
@@ -139,7 +147,12 @@ class Client {
 	public function sendBuck(Buck $buck, $timeout = 0) {
 		$socket = $this->getDeskSocket($buck);
 		if (!$socket->sendBuck($buck, null, $timeout))
-			Exception::throwNew($this, "Unable to send {$buck} to {$socket}");
+			throw new Exception('Unable to send buck to socket', [
+				'context' => $this,
+				'buck'    => $buck,
+				'socket'  => $socket,
+				'method'  => __METHOD__
+			]);
 		else if ($this->options['log_sends'])
 			error_log("{$this} sent {$buck} to {$socket}");
 		return $buck;

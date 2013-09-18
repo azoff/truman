@@ -1,7 +1,9 @@
 <? namespace truman;
 
 if (!extension_loaded('sockets'))
-	Exception::throwNew('Sockets Extension Required, see:', 'http://php.net/manual/sockets.setup.php');
+	throw new Exception('Truman requires the PHP Sockets Extension', [
+		'href' => 'http://php.net/manual/sockets.setup.php'
+	]);
 
 class Socket {
 
@@ -34,7 +36,11 @@ class Socket {
 		if (is_string($host_spec))
 			$host_spec = parse_url($host_spec);
 		if (!is_array($host_spec))
-			Exception::throwNew($this, 'host_spec must be an int, string, or array');
+			throw new Exception('Host spec must be an int, string, or array', [
+				'context'   => $this,
+				'host_spec' => $host_spec,
+				'method'    => __METHOD__
+			]);
 
 		$this->options = $host_spec + $options + self::$_DEFAULT_OPTIONS;
 
@@ -275,7 +281,11 @@ class Socket {
 		$size_limit = $this->options['size_limit'];
 
 		if ($expected_bytes > $size_limit)
-			Exception::throwNew($this, "Message size greater than limit of {$size_limit} bytes");
+			throw new Exception('Message size exceeds size limit', [
+				'context'    => $this,
+				'size_limit' => "{$size_limit} bytes",
+				'method'     => __METHOD__
+			]);
 
 		$actual_bytes = \socket_write($connection, $message, $expected_bytes);
 
@@ -307,9 +317,12 @@ class Socket {
 			return;
 
 		$error = \socket_strerror($error_code);
-		$msg = "{$msg}. {$error}";
 
-		Exception::throwNew($this, $msg);
+		throw new Exception($msg, [
+			'context'    => $this,
+			'error'      => $error,
+			'code'       => $error_code
+		]);
 
 	}
 
