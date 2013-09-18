@@ -285,9 +285,6 @@ class Desk {
 			return null;
 		}
 
-		// ensure that the children streams are valid
-		$this->reapDrawers();
-
 		// if sending to stream fails, return null
 		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
@@ -298,9 +295,6 @@ class Desk {
 	}
 
 	public function reapDrawers() {
-
-		if (!$this->continue)
-			return false;
 
 		foreach ($this->drawerKeys() as $key) {
 			if ($respawn = $this->isChildless($key)) {
@@ -524,6 +518,9 @@ class Desk {
 	public function tick($timeout = 0) {
 
 		$this->continue = true;
+
+		// ensure that the children streams are still valid
+		$this->reapDrawers();
 
 		if (!is_null($received_buck = $this->receiveBuck($timeout))) {
 			if ($this->log_tick_work)
