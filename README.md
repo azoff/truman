@@ -8,7 +8,8 @@ TODO
 - Fix integration tests
 - Add reap test to Desk_Test
 - Implement load testing
-- Create an example client/server
+   - Create an example client/server
+- DeskAccumulator tests
 - Start the monitor project to read and save events
   - Create a protocol for logged events (everything we'd want to track)
   - Create Logger to log events (to log and monitor)

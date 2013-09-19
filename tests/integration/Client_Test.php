@@ -3,7 +3,7 @@
 use truman\Client;
 use truman\Buck;
 use truman\Desk;
-use truman\ResultAccumulator;
+use truman\DeskAccumulator;
 
 class Client_Test extends PHPUnit_Framework_TestCase {
 
@@ -19,8 +19,8 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 	public function testNotifyDesks() {
 
-		$accumulator = new ResultAccumulator();
-		$desk = new Desk($port = 12345, $accumulator->getExpectDeskOptions());
+		$accumulator = new DeskAccumulator();
+		$desk = new Desk($port = 12345, $accumulator->optionsExpectedBucksIn());
 
 		// create an "outdated" client by not notifying desks
 		$spec = ["127.0.0.1:{$port}", "localhost:{$port}"];
@@ -111,7 +111,13 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 				'channels' => "channel_{$i}"
 			);
 
-		// explicitly enumerates all interfaces
+		// start the desk
+		$expected = count($specs);
+		$accumulator = new DeskAccumulator();
+		$options = $accumulator->optionsExpectedResults($expected);
+		$desk = new Desk($port, $options);
+
+		// start the client
 		$client = new Client($specs);
 
 		// send a buck to each interface
@@ -121,19 +127,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 			$client->sendBuck($buck);
 		}
 
-		// capture all the results
-		$results = array();
-		$expected = count($specs);
-
-		// start the desk
-		$desk = Desk::startNew($port, [
-			'result_received_handler' => function(Result $result, Desk $desk)
-				use (&$results, $expected) {
-				$results[] = $result;
-				if (count($results) >= $expected)
-					$desk->stop();
-			}
-		]);
+		$desk->start();
 
 		$desk->__destruct();
 

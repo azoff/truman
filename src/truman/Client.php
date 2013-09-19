@@ -1,6 +1,6 @@
 <? namespace truman;
 
-class Client {
+class Client implements \JsonSerializable {
 
 	const TIMEOUT_DEFAULT = 5;
 
@@ -34,6 +34,10 @@ class Client {
 		$count = $this->getDeskCount();
 		$sig = substr($this->getSignature(), -22);
 		return "Client<{$sig}>[{$count}]";
+	}
+
+	public function jsonSerialize() {
+		return $this->__toString();
 	}
 
 	function __destruct() {
@@ -129,11 +133,9 @@ class Client {
 		if ($timeout < 0) return;
 		if (isset($this->notified) && !$this->notified) {
 			$buck = $this->newNotificationBuck();
-			$message = serialize($buck);
-			$expected = strlen($message);
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = $this->createOrGetSocket($target, $desk_spec);
-				if ($expected !== $socket->send($message, null, $timeout))
+				if (!$socket->send($buck, null, $timeout))
 					throw new Exception('Unable to notify socket about new client signature', [
 						'context' => $this,
 						'socket'  => $socket,
@@ -146,7 +148,7 @@ class Client {
 
 	public function sendBuck(Buck $buck, $timeout = 0) {
 		$socket = $this->getDeskSocket($buck);
-		if (!$socket->sendBuck($buck, null, $timeout))
+		if (!$socket->send($buck, null, $timeout))
 			throw new Exception('Unable to send buck to socket', [
 				'context' => $this,
 				'buck'    => $buck,

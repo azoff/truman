@@ -32,9 +32,8 @@ class Util_Test extends PHPUnit_Framework_TestCase {
 		$path       = Util::tempFifo();
 		$read       = fopen($path, 'r');
 		$write      = fopen($path, 'w');
-		$object     = Util::sendPhpObjectToStream(new stdClass(), $write);
-		$serialized = stream_get_contents($read);
-		$this->assertEquals($object, unserialize($serialized));
+		$object     = Util::writeObjectToStream(new stdClass(), $write);
+		$this->assertEquals($object, Util::readObjectFromStream($read));
 	}
 
 	public function testIsKeyedArray() {

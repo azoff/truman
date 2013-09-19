@@ -1,6 +1,6 @@
 <? namespace truman;
 
-class Channel {
+class Channel implements \JsonSerializable {
 
 	private $name;
 	private $count;
@@ -17,6 +17,10 @@ class Channel {
 
 	public function __toString() {
 		return "Channel<{$this->name}>[{$this->count}]";
+	}
+
+	public function jsonSerialize() {
+		return $this->__toString();
 	}
 
 	public function addTarget($target) {

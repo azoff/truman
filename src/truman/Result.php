@@ -1,6 +1,6 @@
 <? namespace truman;
 
-class Result {
+class Result implements \JsonSerializable {
 
 	private $data, $successful;
 
@@ -14,6 +14,10 @@ class Result {
 		$buck = isset($data->buck) ? $data->buck : '(empty)';
 		$stat = $this->was_successful() ? 'successful' : 'erroneous';
 		return "Result<{$buck} => {$stat}>";
+	}
+
+	public function jsonSerialize() {
+		return $this->__toString();
 	}
 
 	public function data() {

@@ -1,6 +1,6 @@
 <? namespace truman;
 
-class Buck {
+class Buck implements \JsonSerializable {
 
 	const CALLABLE_NOOP = '__NOOP__';
 
@@ -70,6 +70,10 @@ class Buck {
 	public function __toString() {
 		$uuid = $this->getUUID();
 		return "Buck<{$uuid}>";
+	}
+
+	public function jsonSerialize() {
+		return $this->__toString();
 	}
 
 	public function calculateSeed() {

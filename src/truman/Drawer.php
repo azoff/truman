@@ -1,6 +1,6 @@
 <? namespace truman;
 
-class Drawer {
+class Drawer implements \JsonSerializable {
 
 	const KILLCODE = '__DRAWER_KILL__';
 
@@ -9,6 +9,7 @@ class Drawer {
 	private static $_DEFAULT_OPTIONS = [
 		'log_errors'         => true,
 		'log_bucks_received' => true,
+		'log_bucks_executed' => true,
 		'timeout'            => 0,
 		'stream_input'       => STDIN,
 		'stream_output'      => STDOUT,
@@ -31,6 +32,9 @@ class Drawer {
 		return "Drawer<{$pid}>";
 	}
 
+	public function jsonSerialize() {
+		return $this->__toString();
+	}
 
 	public function poll() {
 		declare(ticks = 1);
@@ -54,16 +58,14 @@ class Drawer {
 			return -1;
 
 		$input = fgets(reset($inputs));
-		if (!isset($input{0}))
-			return -1;
-
-		$buck  = unserialize($input);
+		$buck  = Util::streamDataDecode($input);
 		$valid = $buck instanceof Buck;
+
 		if ($valid) $this->log("received {$buck}", 'bucks_received');
 		else return $this->log('received unrecognized input, ignoring...', 'errors');
 
 		$result = $this->execute($buck);
-		$result = Util::sendPhpObjectToStream($result, $output);
+		$result = Util::writeObjectToStream($result, $output);
 		$data   = $result->data();
 
 		return isset($data->retval) && $data->retval === self::KILLCODE ? 0 : -1;
@@ -102,6 +104,8 @@ class Drawer {
 			$passed = false;
 		else if (isset($data->retval))
 			$passed = (bool) $data->retval;
+
+		$this->log("executed {$buck}", 'bucks_executed');
 
 		return new Result($passed, $data);
 

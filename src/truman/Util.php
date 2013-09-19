@@ -20,13 +20,18 @@ class Util {
 		return $path;
 	}
 
-	public static function sendPhpObjectToStream($object, $stream) {
-		$data     = serialize($object) . "\n";
+	public static function writeObjectToStream($object, $stream) {
+		$data     = self::streamDataEncode($object);
 		$expected = strlen($data);
 		$actual   = 0;
 		do $actual += fputs($stream, $data);
 		while ($actual !== $expected);
 		return $object;
+	}
+
+	public static function readObjectFromStream($stream) {
+		$message = fgets($stream);
+		return self::streamDataDecode($message);
 	}
 
 	public static function isKeyedArray(array $to_check) {
@@ -61,6 +66,14 @@ class Util {
 
 	public static function trace() {
 		self::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
+	}
+
+	public static function streamDataDecode($data, $delimeter = PHP_EOL) {
+		return unserialize(base64_decode(rtrim($data, $delimeter)));
+	}
+
+	public static function streamDataEncode($data, $delimeter = PHP_EOL) {
+		return base64_encode(serialize($data)) . $delimeter;
 	}
 
 }

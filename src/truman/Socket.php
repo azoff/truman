@@ -5,16 +5,16 @@ if (!extension_loaded('sockets'))
 		'href' => 'http://php.net/manual/sockets.setup.php'
 	]);
 
-class Socket {
+class Socket implements \JsonSerializable {
 
 	private static $_DEFAULT_OPTIONS = array(
 		'host'        => '0.0.0.0', // Bind to all incoming addresses
 		'port'        => 0, // Self-assign a port number
-		'buffer_size' => 2048, // Chunk size for socket reads
+		'buffer_size' => 262144, // Chunk size for socket reads
 		'socket_domain' => AF_INET, // IPv4 Internet based protocols
 		'socket_type' => SOCK_STREAM, // Provides sequenced, reliable, full-duplex, connection-based byte streams
 		'socket_protocol' => SOL_TCP, // A reliable, connection based, stream oriented, full duplex protocol
-		'size_limit' => 2048, // The maximum message size that can be sent or received
+		'size_limit' => 262144, // The maximum message size that can be sent or received
 		'reuse_port' => true, // Marks the socket as reusable
 		'max_connections' => null, // Number of connections to allow on the socket, null is system dependent
 		'nonblocking' => true, // Does not block on accept()
@@ -105,7 +105,7 @@ class Socket {
 		// client mode (remote)
 		} else {
 
-			$connected = \socket_connect(
+			$connected = @\socket_connect(
 				$this->socket,
 				$this->getHost(),
 				$this->getPort()
@@ -137,6 +137,10 @@ class Socket {
 
 	public function __toString() {
 		return "Socket<{$this->host}:{$this->port}>";
+	}
+
+	public function jsonSerialize() {
+		return $this->__toString();
 	}
 
 	public function acceptConnection($timeout = 0) {
@@ -218,14 +222,14 @@ class Socket {
 
 	}
 
-	public function receive($callback = null, $timeout = 0) {
+	public function receive($timeout = 0) {
 
 		if ($this->isClient()) {
 			$connections = [$this->socket];
 		} else {
 			$this->acceptConnection($timeout);
 			if (!count($connections = $this->connections))
-				return false;
+				return null;
 		}
 
 		$ready = \socket_select($connections, $i, $j, $timeout);
@@ -234,7 +238,7 @@ class Socket {
 			$this->throwError('Unable to detect socket changes');
 
 		if ($ready <= 0)
-			return false;
+			return null;
 
 		$read_limit = $this->options['size_limit'];
 
@@ -243,21 +247,14 @@ class Socket {
 			$message = \socket_read($connection, $read_limit, PHP_NORMAL_READ);
 
 			// close out sockets that don't provide any data
-			if ($message === false) {
-				$this->closeConnection($connection);
+			if ($message === false) $this->closeConnection($connection);
 
 			// otherwise delegate interpretation of the data to the caller
-			} else {
-				$message = rtrim($message, $this->options['msg_delimiter']);
-				if (is_callable($callback))
-					return call_user_func($callback, $message, $this, $connection);
-				else
-					return $message;
-			}
+			else return Util::streamDataDecode($message, $this->options['msg_delimiter']);
 
 		}
 
-		return false;
+		return null;
 
 	}
 
@@ -273,12 +270,10 @@ class Socket {
 		if ($ready <= 0)
 			return 0;
 
-		$connection = $connections[0];
-		$delimeter  = $this->options['msg_delimiter'];
-		$message    = rtrim($message, $delimeter) . $delimeter;
-
+		$connection     = $connections[0];
+		$message        = Util::streamDataEncode($message, $this->options['msg_delimiter']);
 		$expected_bytes = strlen($message);
-		$size_limit = $this->options['size_limit'];
+		$size_limit     = $this->options['size_limit'];
 
 		if ($expected_bytes > $size_limit)
 			throw new Exception('Message size exceeds size limit', [
@@ -287,24 +282,15 @@ class Socket {
 				'method'     => __METHOD__
 			]);
 
-		$actual_bytes = \socket_write($connection, $message, $expected_bytes);
+		$actual_bytes = 0;
+		do $actual_bytes += \socket_write($connection, $message, $expected_bytes);
+		while ($actual_bytes < $expected_bytes);
 
 		if ($actual_bytes === false)
 			$this->throwError('Unable to write to socket', $connection);
 
-		if ($actual_bytes >= $expected_bytes)
-			return $actual_bytes - 1;
+		return true;
 
-		// message truncated, need to retry
-		$message = substr($message, $actual_bytes);
-		return $actual_bytes - 1 + $this->send($message, $connection, $timeout);
-
-	}
-
-	public function sendBuck(Buck $buck, $socket = null, $timeout = 0) {
-		$expected = strlen($message = serialize($buck));
-		$actual = $this->send($message, $socket, $timeout);
-		return $expected === $actual;
 	}
 
 	private function throwError($msg, $socket = null) {

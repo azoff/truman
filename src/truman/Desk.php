@@ -1,6 +1,6 @@
 <? namespace truman;
 
-class Desk {
+class Desk implements \JsonSerializable {
 
 	const STATE_WAITING = 'waiting';
 	const STATE_RUNNING = 'running';
@@ -139,6 +139,10 @@ class Desk {
 	public function __toString() {
 		$count = $this->drawerCount();
 		return "Desk<{$this->inbound_socket}>[{$count}]";
+	}
+
+	public function jsonSerialize() {
+		return $this->__toString();
 	}
 
 	public function drawerCount() {
@@ -319,17 +323,11 @@ class Desk {
 		if (!isset($this->inbound_socket))
 			return null;
 
-		if (!strlen($serialized = $this->inbound_socket->receive(null, $timeout)))
-			return null;
+		$buck = $this->inbound_socket->receive($timeout);
+		if ($buck instanceof Buck)
+			return $this->enqueueBuck($buck);
 
-		$buck = unserialize($serialized);
-		if (!($buck instanceof Buck)) {
-			if ($this->log_socket_errors)
-				error_log("{$this} {$this->inbound_socket}, '{$serialized}' is not a serialize()'d Buck");
-			return null;
-		}
-
-		return $this->enqueueBuck($buck);
+		return null;
 
 	}
 
@@ -341,20 +339,16 @@ class Desk {
 
 	private function receiveResultFromStreams(array $streams, $timeout = 0) {
 
-		if (!stream_select($inputs = $streams, $i, $j, $timeout))
+		if (!stream_select($outputs = $streams, $i, $j, $timeout))
 			return null;
 
-		foreach ($inputs as $input) {
+		foreach ($outputs as $output) {
 
-			$serialized = trim(stream_get_contents($input));
-			$key = array_pop(array_keys($streams, $input));
+			$key    = array_pop(array_keys($streams, $output));
+			$result = Util::readObjectFromStream($output);
+			$valid  = $result instanceof Result;
 
-			if (!isset($serialized{0}))
-				continue;
-
-			$result = unserialize($serialized);
-			if (!$result)
-				$result = new Result(false, (object) ['exception' => "malformed syntax: {$serialized}"]);
+			if (!$valid) continue;
 
 			$data = $result->data();
 
@@ -409,7 +403,7 @@ class Desk {
 		$key = array_rand($streams, 1);
 		$stream = $streams[$key];
 
-		return Util::sendPhpObjectToStream($buck, $stream);
+		return Util::writeObjectToStream($buck, $stream);
 
 	}
 

@@ -2,7 +2,7 @@
 
 use truman\Buck;
 use truman\Desk;
-use truman\ResultAccumulator;
+use truman\DeskAccumulator;
 use truman\Socket;
 use truman\Client;
 use truman\Util;
@@ -12,13 +12,14 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	public function testInclude() {
 		$includes[] = Util::tempPhpFile('function a(){ return "a"; }');
 		$includes[] = Util::tempPhpFile('function b(){ return "b"; }');
-		$accumulator = new ResultAccumulator();
+		$accumulator = new DeskAccumulator();
 		$options = ['include' => $includes];
-		$options = $accumulator->getExpectDeskOptions(2, $options);
+		$options = $accumulator->optionsExpectedResults(2, $options);
 		$desk = new Desk(null, $options);
 		$desk->enqueueBuck(new Buck('a'));
 		$desk->enqueueBuck(new Buck('b'));
-		$retvals = $accumulator->getRetvals();
+		$desk->start();
+		$retvals = $accumulator->getResultRetvals();
 		$this->assertContains('a', $retvals);
 		$this->assertContains('b', $retvals);
 	}
@@ -46,11 +47,11 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	private function resultAttributeTest(Buck $buck, $attribute) {
-		$accumulator = new ResultAccumulator();
-		$desk = new Desk(null, $accumulator->getExpectDeskOptions(1));
+		$accumulator = new DeskAccumulator();
+		$desk = new Desk(null, $accumulator->optionsExpectedResults(1));
 		$desk->enqueueBuck($buck);
 		$desk->start();
-		$this->assertInstanceOf('truman\Result', $result = $accumulator->getFirst());
+		$this->assertInstanceOf('truman\Result', $result = $accumulator->getResultFirst());
 		$this->assertInstanceOf('stdClass', $data = $result->data());
 		$this->assertObjectHasAttribute($attribute, $data);
 		$desk->__destruct();
@@ -70,7 +71,9 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testException() {
-		$buck = new Buck('truman\Exception::throwNew', ['test', 'test']);
+		// reflectionException is a missing method, causing a Reflection Exception
+		// this tests for how missing methods are handled, and how exceptions are returned
+		$buck = new Buck('reflectionException', ['test', 'test']);
 		$data = $this->resultAttributeTest($buck, 'exception');
 		$this->assertInstanceOf('Exception', $data->exception);
 	}
@@ -90,12 +93,12 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	public function testBuckSocket() {
 		$port   = 12345;
 		$buck   = new Buck('strlen', ['test']);
+		$accumulator = new DeskAccumulator();
+		$desk = new Desk($port, $accumulator->optionsExpectedResults(1));
 		$client = new Socket($port, ['force_client_mode' => 1]);
-		$this->assertTrue($client->sendBuck($buck));
-		$accumulator = new ResultAccumulator();
-		$desk = new Desk($port, $accumulator->getExpectDeskOptions(1));
+		$this->assertTrue($client->send($buck));
 		$desk->start();
-		$this->assertInstanceOf('Result', $result = $accumulator->getFirst());
+		$this->assertInstanceOf('truman\Result', $result = $accumulator->getResultFirst());
 		$this->assertInstanceOf('stdClass', $data = $result->data());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($buck->invoke(), $data->retval);
@@ -103,12 +106,12 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testStartStop() {
-		$accumulator = new ResultAccumulator();
-		$desk = new Desk(null, $accumulator->getExpectDeskOptions());
+		$accumulator = new DeskAccumulator();
+		$desk = new Desk(null, $accumulator->optionsExpectedResults());
 		$desk->enqueueBuck(new Buck('strlen', ['foo']));
 		$desk->enqueueBuck(new Buck('strlen', ['test']));
 		$desk->start();
-		$this->assertEquals(1, $accumulator->getCount());
+		$this->assertEquals(1, $accumulator->getResultCount());
 		$desk->__destruct();
 	}
 
