@@ -95,16 +95,14 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 	public function testBuckReRouting() {
 
 		// get all network addresses
-		preg_match_all("#inet addr:\s*([^\s/]+)#", shell_exec('ifconfig'), $interfaces);
-
 		$port = 12345;
 
 		// add the first interface twice, to test caching
-		array_unshift($interfaces[1], $interfaces[1][0]);
+		$interfaces = ['localhost', '127.0.0.1'];
 
 		// build specifications
 		$specs = array();
-		foreach ($interfaces[1] as $i => $interface)
+		foreach ($interfaces as $i => $interface)
 			$specs[] = array(
 				'host' => $interface,
 				'port' => $port,
