@@ -16,7 +16,7 @@ class Desk implements \JsonSerializable {
 	private $command;
 	private $continue;
 	private $processes;
-	private $shell_pids, $php_pids;
+	private $process_pids;
 	private $stdins, $stdouts, $stderrs;
 	private $inbound_socket;
 
@@ -194,21 +194,15 @@ class Desk implements \JsonSerializable {
 		return $this->client;
 	}
 
-	public function isChildless($key) {
-		$pid = $this->shell_pids[$key];
-		return !is_numeric(posix_getsid($pid));
+	public function isAlive($key) {
+		$status = proc_get_status($this->processes[$key]);
+		return (bool) $status['running'];
 	}
 
-	public function isOrphaned($key) {
-		$pid = $this->php_pids[$key];
-		return !is_numeric(posix_getsid($pid));
-	}
-
-	public function killDrawer($key, $signal = 15) {
+	public function killDrawer($key) {
 
 		// send SIGTERM to all child processes
-		posix_kill($this->shell_pids[$key],    $signal);
-		posix_kill($this->php_pids[$key],      $signal);
+		posix_kill($this->process_pids[$key], 15);
 
 		// close all resources pointing at those processes
 		fclose($this->stdins[$key]);
@@ -217,8 +211,7 @@ class Desk implements \JsonSerializable {
 		proc_close($this->processes[$key]);
 
 		// stop tracking the process
-		unset($this->shell_pids[$key]);
-		unset($this->php_pids[$key]);
+		unset($this->process_pids[$key]);
 		unset($this->stdins[$key]);
 		unset($this->stdouts[$key]);
 		unset($this->stderrs[$key]);
@@ -298,17 +291,20 @@ class Desk implements \JsonSerializable {
 
 	}
 
+	public function activeDrawerCount() {
+		$count = $this->drawerCount();
+		foreach ($this->drawerKeys() as $key)
+			if (!$this->isAlive($key))
+				$count--;
+		return $count;
+	}
+
 	public function reapDrawers() {
 
 		foreach ($this->drawerKeys() as $key) {
-			if ($respawn = $this->isChildless($key)) {
+			if (!$this->isAlive($key)) {
 				if ($this->log_drawer_errors)
-					error_log("{$this} {$key} is childless, respawning process...");
-			} else if ($respawn = $this->isOrphaned($key)) {
-				if ($this->log_drawer_errors)
-					error_log("{$this} {$key} is orphaned, respawning process...");
-			}
-			if ($respawn) {
+					error_log("{$key} is dead, {$this} respawning drawer...");
 				$this->killDrawer($key);
 				$this->spawnDrawer();
 			}
@@ -407,8 +403,8 @@ class Desk implements \JsonSerializable {
 
 	}
 
-	public function start($timeout = 0) {
-		while($this->tick($timeout));
+	public function start($timeout = 0, $auto_reap_drawers = true) {
+		while($this->tick($timeout, $auto_reap_drawers));
 	}
 
 	public function stop() {
@@ -432,56 +428,37 @@ class Desk implements \JsonSerializable {
 
 		// get shell PID
 		$status = proc_get_status($process);
-		$shell_pid = $status['pid'];
+		$process_pid = $status['pid'];
 
-		$key = "drawer.php<{$shell_pid}";
+		$key = "Drawer<{$process_pid}>";
 
 		if (!is_resource($stdin = $streams[self::STDIN]))
 			throw new Exception('Unable to write to drawer STDIN', [
 				'context' => $this,
-				'drawer'  => "{$key}>",
+				'drawer'  => $key,
 				'method'  => __METHOD__
 			]);
 		if (!is_resource($stdout = $streams[self::STDOUT]))
 			throw new Exception('Unable to read from drawer STDOUT', [
 				'context' => $this,
-				'drawer'  => "{$key}>",
+				'drawer'  => $key,
 				'method'  => __METHOD__
 			]);
 		if (!is_resource($stderr = $streams[self::STDERR]))
 			throw new Exception('Unable to write from drawer STDERR', [
 				'context' => $this,
-				'drawer'  => "{$key}>",
+				'drawer'  => $key,
 				'method'  => __METHOD__
 			]);
 
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 
-		// get php PID
-		$getmypid = new Buck();
-		if (is_null($buck = $this->sendBuckToStreams($getmypid, [$stdin], 5)))
-			throw new Exception('Unable to write to send startup Buck to drawer', [
-				'context' => $this,
-				'drawer'  => "{$key}>",
-				'method'  => __METHOD__
-			]);
-		if (is_null($result = $this->receiveResultFromStreams([$stdout], 5)))
-			throw new Exception('Unable to write to send startup Result from drawer', [
-				'context' => $this,
-				'drawer'  => "{$key}>",
-				'method'  => __METHOD__
-			]);
-		$php_pid = $result->data()->pid;
-
-		$key = "$key,{$php_pid}>";
-
-		$this->shell_pids[$key] = $shell_pid;
-		$this->php_pids[$key]   = $php_pid;
-		$this->processes[$key]  = $process;
-		$this->stdins[$key]     = $stdin;
-		$this->stdouts[$key]    = $stdout;
-		$this->stderrs[$key]    = $stderr;
+		$this->process_pids[$key] = $process_pid;
+		$this->processes[$key]    = $process;
+		$this->stdins[$key]       = $stdin;
+		$this->stdouts[$key]      = $stdout;
+		$this->stderrs[$key]      = $stderr;
 
 	}
 
@@ -509,12 +486,12 @@ class Desk implements \JsonSerializable {
 
 	}
 
-	public function tick($timeout = 0) {
+	public function tick($timeout = 0, $auto_reap_drawers = true) {
 
 		$this->continue = true;
 
 		// ensure that the children streams are still valid
-		$this->reapDrawers();
+		if ($auto_reap_drawers) $this->reapDrawers();
 
 		if (!is_null($received_buck = $this->receiveBuck($timeout))) {
 			if ($this->log_tick_work)

@@ -3,6 +3,7 @@
 use truman\Buck;
 use truman\Desk;
 use truman\DeskAccumulator;
+use truman\Drawer;
 use truman\Socket;
 use truman\Client;
 use truman\Util;
@@ -44,18 +45,6 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($high, $desk->processBuck());
 		$this->assertEquals($medium, $desk->processBuck());
 		$this->assertEquals($low, $desk->processBuck());
-	}
-
-	private function resultAttributeTest(Buck $buck, $attribute) {
-		$accumulator = new DeskAccumulator();
-		$desk = new Desk(null, $accumulator->optionsExpectedResults(1));
-		$desk->enqueueBuck($buck);
-		$desk->start();
-		$this->assertInstanceOf('truman\Result', $result = $accumulator->getResultFirst());
-		$this->assertInstanceOf('stdClass', $data = $result->data());
-		$this->assertObjectHasAttribute($attribute, $data);
-		$desk->__destruct();
-		return $data;
 	}
 
 	public function testBuck() {
@@ -113,6 +102,68 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$desk->start();
 		$this->assertEquals(1, $accumulator->getResultCount());
 		$desk->__destruct();
+	}
+
+	public function testCleanReap() {
+
+		$includes[] = Util::tempPhpFile('function cleanKill(){ return Drawer::KILLCODE; }');
+
+		$includes = ['include' => $includes];
+		$accumulator = new DeskAccumulator();
+		$options = $accumulator->optionsExpectedResults(1, $includes);
+
+		$desk = new Desk(null, $options);
+		$expected = $desk->drawerCount();
+
+		$this->assertEquals($expected, $desk->activeDrawerCount());
+
+		$desk->enqueueBuck(new Buck('cleanKill'));
+		$desk->start(0, false);
+		usleep(50000); // give it some time to die...
+
+		$this->assertNotEquals($expected, $desk->activeDrawerCount());
+
+		$desk->reapDrawers();
+
+		$this->assertEquals($expected, $desk->activeDrawerCount());
+
+	}
+
+	public function testDirtyReap() {
+
+		$includes[] = Util::tempPhpFile('function dirtyKill(){ exit(); }');
+
+		$includes = ['include' => $includes];
+		$accumulator = new DeskAccumulator();
+		$options = $accumulator->optionsExpectedResults(1, $includes);
+
+		$desk = new Desk(null, $options);
+		$expected = $desk->drawerCount();
+
+		$this->assertEquals($expected, $desk->activeDrawerCount());
+
+		$desk->enqueueBuck(new Buck('dirtyKill'));
+		$desk->start(0, false);
+		usleep(50000); // give it some time to die...
+
+		$this->assertNotEquals($expected, $desk->activeDrawerCount());
+
+		$desk->reapDrawers();
+
+		$this->assertEquals($expected, $desk->activeDrawerCount());
+
+	}
+
+	private function resultAttributeTest(Buck $buck, $attribute) {
+		$accumulator = new DeskAccumulator();
+		$desk = new Desk(null, $accumulator->optionsExpectedResults(1));
+		$desk->enqueueBuck($buck);
+		$desk->start();
+		$this->assertInstanceOf('truman\Result', $result = $accumulator->getResultFirst());
+		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertObjectHasAttribute($attribute, $data);
+		$desk->__destruct();
+		return $data;
 	}
 
 }

@@ -4,14 +4,16 @@ class DeskAccumulator {
 
 	private $results;
 	private $bucks_in;
+	private $bucks_out;
 
 	public function __construct() {
 		$this->reset();
 	}
 
 	public function reset() {
-		$this->results  = [];
-		$this->bucks_in = [];
+		$this->results   = [];
+		$this->bucks_in  = [];
+		$this->bucks_out = [];
 	}
 
 	public function fnExpectedResults($expected_results = 0) {
@@ -42,6 +44,20 @@ class DeskAccumulator {
 		return $handler + $desk_options;
 	}
 
+	public function fnExpectedBucksOut($expected_bucks_out = 0) {
+		$accumulator = $this;
+		return function(Buck $bucks_out, Desk $desk) use (&$accumulator, $expected_bucks_out) {
+			$accumulator->bucks_out[] = $bucks_out;
+			if ($accumulator->getBuckOutCount() >= $expected_bucks_out)
+				$desk->stop();
+		};
+	}
+
+	public function optionsExpectedBucksOut($expected_bucks_out = 0, array $desk_options = []) {
+		$handler = ['buck_processed_handler' => $this->fnExpectedBucksOut($expected_bucks_out)];
+		return $handler + $desk_options;
+	}
+
 	public function getResultFirst() {
 		return reset($this->getResults());
 	}
@@ -54,12 +70,20 @@ class DeskAccumulator {
 		return count($this->bucks_in);
 	}
 
+	public function getBuckOutCount() {
+		return count($this->bucks_out);
+	}
+
 	public function getResults() {
 		return $this->results;
 	}
 
 	public function getBucksIn() {
 		return $this->bucks_in;
+	}
+
+	public function getBucksOut() {
+		return $this->bucks_out;
 	}
 
 	public function getResultRetvals() {

@@ -4,7 +4,7 @@ class Drawer implements \JsonSerializable {
 
 	const KILLCODE = '__DRAWER_KILL__';
 
-	private $options;
+	private $options, $data;
 
 	private static $_DEFAULT_OPTIONS = [
 		'log_errors'         => true,
@@ -18,7 +18,29 @@ class Drawer implements \JsonSerializable {
 	public static function main(array $argv, array $options = []) {
 		$reqs   = array_slice($argv, 1);
 		$drawer = new Drawer($reqs, $options);
+		register_shutdown_function([$drawer, 'shutdown']);
 		return $drawer->poll();
+	}
+
+	public function shutdown() {
+
+		// no jobs killed this script, it exited normally
+		if (!isset($this->data))
+			exit(0);
+
+		// something bad happened; let papa know
+		$error = error_get_last();
+		if (isset($error['message']{0}))
+			$this->data['error'] = $error;
+		if ($output = ob_get_clean())
+			$this->data['output'] = $output;
+		$this->data['runtime'] += microtime(1);
+
+		$result = new Result(false, (object) $this->data);
+		Util::writeObjectToStream($result,  $this->options['stream_output']);
+
+		exit(1);
+
 	}
 
 	public function __construct(array $requirements = [], array $options = []) {
@@ -65,10 +87,17 @@ class Drawer implements \JsonSerializable {
 		else return $this->log('received unrecognized input, ignoring...', 'errors');
 
 		$result = $this->execute($buck);
-		$result = Util::writeObjectToStream($result, $output);
-		$data   = $result->data();
+		$this->log("executed {$buck}", 'bucks_executed');
 
-		return isset($data->retval) && $data->retval === self::KILLCODE ? 0 : -1;
+		Util::writeObjectToStream($result, $output);
+		$data = $result->data();
+
+		if (isset($data->retval) && $data->retval === self::KILLCODE) {
+			$this->log("received KILL code, exiting...", 'bucks_received');
+			return -1;
+		}
+
+		return -1;
 
 	}
 
@@ -81,31 +110,32 @@ class Drawer implements \JsonSerializable {
 		ob_start();
 		@trigger_error('');
 
-		$data['pid']     = $pid;
-		$data['buck']    = $buck;
-		$data['runtime'] = -microtime(1);
+		$this->data            = [];
+		$this->data['pid']     = $pid;
+		$this->data['buck']    = $buck;
+		$this->data['runtime'] = -microtime(1);
 		try {
-			$data['retval'] = @$buck->invoke();
+			$this->data['retval'] = @$buck->invoke();
 		} catch (Exception $ex) {
-			$data['exception'] = $ex;
+			$this->data['exception'] = $ex;
 		}
 		$error = error_get_last();
-		if (strlen($error['message']))
-			$data['error'] = $error;
+		if (isset($error['message']{0}))
+			$this->data['error'] = $error;
 		if ($output = ob_get_clean())
-			$data['output'] = $output;
-		$data['runtime'] += microtime(1);
+			$this->data['output'] = $output;
+		$this->data['runtime'] += microtime(1);
 
 		Buck::unsetThreadContext($pid);
 
-		$passed = true;
-		$data   = (object) $data;
-		if (isset($data->exception) || isset($data->error))
-			$passed = false;
-		else if (isset($data->retval))
-			$passed = (bool) $data->retval;
+		$data   = (object) $this->data;
+		$passed =
+			!isset($data->exception) &&
+			!isset($data->error)     && (
+			!isset($data->retval)    ||
+			(bool) $data->retval     );
 
-		$this->log("executed {$buck}", 'bucks_executed');
+		unset($this->data);
 
 		return new Result($passed, $data);
 
