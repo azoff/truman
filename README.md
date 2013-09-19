@@ -5,7 +5,6 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Fix integration tests
 - Add reap test to Desk_Test
 - Implement load testing
    - Create an example client/server
