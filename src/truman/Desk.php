@@ -5,6 +5,11 @@ class Desk implements \JsonSerializable {
 	const STATE_WAITING = 'waiting';
 	const STATE_RUNNING = 'running';
 
+	const OPTION_DRAWER_COUNT            = 'drawer_count';
+	const OPTION_BUCK_RECEIVED_HANDLER   = 'buck_received_handler';
+	const OPTION_BUCK_PROCESSED_HANDLER  = 'buck_processed_handler';
+	const OPTION_RESULT_RECEIVED_HANDLER = 'result_received_handler';
+
 	const STDIN  = 0;
 	const STDOUT = 1;
 	const STDERR = 2;
@@ -31,15 +36,9 @@ class Desk implements \JsonSerializable {
 	private $buck_processed_handler;
 	private $result_received_handler;
 
-	private static $_KNOWN_HOSTS = array();
+	private static $_KNOWN_HOSTS = [];
 
-	private static $_DESCRIPTORS = array(
-		['pipe', 'r'],
-		['pipe', 'w'],
-		['pipe', 'w']
-	);
-
-	private static $_DEFAULT_OPTIONS = array(
+	private static $_DEFAULT_OPTIONS = [
 		'client_signature'   => '',
 		'spawn'              => 3,
 		'include'            => array(),
@@ -49,10 +48,10 @@ class Desk implements \JsonSerializable {
 		'log_client_reroute' => true,
 		'log_dropped_bucks'  => true,
 		'log_tick_work'      => true,
-		'buck_received_handler'   => null,
-		'buck_processed_handler'  => null,
-		'result_received_handler' => null,
-	);
+		self::OPTION_BUCK_RECEIVED_HANDLER   => null,
+		self::OPTION_BUCK_PROCESSED_HANDLER  => null,
+		self::OPTION_RESULT_RECEIVED_HANDLER => null,
+	];
 
 	public function __construct($inbound_host_spec = null, array $options = []) {
 
@@ -82,7 +81,7 @@ class Desk implements \JsonSerializable {
 		$this->log_dropped_bucks  = (bool) $options['log_dropped_bucks'];
 		$this->log_tick_work      = (bool) $options['log_tick_work'];
 
-		if (!is_null($handler = $options['buck_received_handler'])) {
+		if (!is_null($handler = $options[self::OPTION_BUCK_RECEIVED_HANDLER])) {
 			if (!is_callable($handler))
 				throw new Exception('Invalid handler passed for bucks received', [
 					'context' => $this,
@@ -91,7 +90,7 @@ class Desk implements \JsonSerializable {
 				]);
 			else $this->buck_received_handler = $handler;
 		}
-		if (!is_null($handler = $options['buck_processed_handler'])) {
+		if (!is_null($handler = $options[self::OPTION_BUCK_PROCESSED_HANDLER])) {
 			if (!is_callable($handler))
 				throw new Exception('Invalid handler passed for bucks processed', [
 					'context' => $this,
@@ -100,7 +99,7 @@ class Desk implements \JsonSerializable {
 				]);
 			else $this->buck_processed_handler = $handler;
 		}
-		if (!is_null($handler = $options['result_received_handler'])) {
+		if (!is_null($handler = $options[self::OPTION_RESULT_RECEIVED_HANDLER])) {
 			if (!is_callable($handler))
 				throw new Exception('Invalid handler passed for results received', [
 					'context' => $this,
@@ -118,7 +117,7 @@ class Desk implements \JsonSerializable {
 			array_filter($includes, 'is_readable')
 		));
 
-		while ($options['spawn']-- > 0)
+		while ($options[self::OPTION_DRAWER_COUNT]-- > 0)
 			$this->spawnDrawer();
 
 		register_shutdown_function([$this, '__destruct']);
@@ -415,7 +414,7 @@ class Desk implements \JsonSerializable {
 
 		$process = proc_open(
 			$this->command,
-			self::$_DESCRIPTORS,
+			Util::getStreamDescriptors(),
 			$streams, TRUMAN_HOME
 		);
 

@@ -2,18 +2,18 @@
 
 use truman\Buck;
 use truman\Desk;
-use truman\DeskAccumulator;
 use truman\Drawer;
 use truman\Socket;
 use truman\Client;
 use truman\Util;
+use truman\test\integration\DeskCallbackAccumulator;
 
 class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testInclude() {
 		$includes[] = Util::tempPhpFile('function a(){ return "a"; }');
 		$includes[] = Util::tempPhpFile('function b(){ return "b"; }');
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$options = ['include' => $includes];
 		$options = $accumulator->optionsExpectedResults(2, $options);
 		$desk = new Desk(null, $options);
@@ -82,7 +82,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	public function testBuckSocket() {
 		$port   = 12345;
 		$buck   = new Buck('strlen', ['test']);
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk($port, $accumulator->optionsExpectedResults(1));
 		$client = new Socket($port, ['force_client_mode' => 1]);
 		$this->assertTrue($client->send($buck));
@@ -95,7 +95,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testStartStop() {
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk(null, $accumulator->optionsExpectedResults());
 		$desk->enqueueBuck(new Buck('strlen', ['foo']));
 		$desk->enqueueBuck(new Buck('strlen', ['test']));
@@ -109,7 +109,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$includes[] = Util::tempPhpFile('function cleanKill(){ return Drawer::KILLCODE; }');
 
 		$includes = ['include' => $includes];
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
 		$desk = new Desk(null, $options);
@@ -134,7 +134,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$includes[] = Util::tempPhpFile('function dirtyKill(){ exit(); }');
 
 		$includes = ['include' => $includes];
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
 		$desk = new Desk(null, $options);
@@ -155,7 +155,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	private function resultAttributeTest(Buck $buck, $attribute) {
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk(null, $accumulator->optionsExpectedResults(1));
 		$desk->enqueueBuck($buck);
 		$desk->start();

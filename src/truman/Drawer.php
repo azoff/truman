@@ -19,7 +19,7 @@ class Drawer implements \JsonSerializable {
 		$reqs   = array_slice($argv, 1);
 		$drawer = new Drawer($reqs, $options);
 		register_shutdown_function([$drawer, 'shutdown']);
-		return $drawer->poll();
+		exit($drawer->poll());
 	}
 
 	public function shutdown() {

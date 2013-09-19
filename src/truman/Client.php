@@ -148,14 +148,9 @@ class Client implements \JsonSerializable {
 
 	public function sendBuck(Buck $buck, $timeout = 0) {
 		$socket = $this->getDeskSocket($buck);
-		if (!$socket->send($buck, null, $timeout))
-			throw new Exception('Unable to send buck to socket', [
-				'context' => $this,
-				'buck'    => $buck,
-				'socket'  => $socket,
-				'method'  => __METHOD__
-			]);
-		else if ($this->options['log_sends'])
+		if ($socket->send($buck, null, $timeout))
+			return null;
+		if ($this->options['log_sends'])
 			error_log("{$this} sent {$buck} to {$socket}");
 		return $buck;
 	}

@@ -5,7 +5,8 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Implement load testing
+- Finish render for load testing
+- Ensure tests still work
 - Create an example client/server
 - Add wrapper (convenience) class
 - Start the monitor project to read and save events

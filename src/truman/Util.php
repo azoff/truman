@@ -64,6 +64,18 @@ class Util {
 		error_log(print_r($obj, true));
 	}
 
+	public static function get_args($argv) {
+		return array_filter(array_slice($argv, 1), function($value){
+			return $value{0} !== '-';
+		});
+	}
+
+	public static function get_options(array $opts) {
+		$longopts  = array_values($opts);
+		$shortopts = implode('', array_keys($opts));
+		return getopt($shortopts, $longopts);
+	}
+
 	public static function trace() {
 		self::dump(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
 	}
@@ -74,6 +86,14 @@ class Util {
 
 	public static function streamDataEncode($data, $delimeter = PHP_EOL) {
 		return base64_encode(serialize($data)) . $delimeter;
+	}
+
+	public static function getStreamDescriptors() {
+		return [
+			['pipe', 'r'],
+			['pipe', 'w'],
+			['pipe', 'w']
+		];
 	}
 
 }

@@ -3,7 +3,7 @@
 use truman\Client;
 use truman\Buck;
 use truman\Desk;
-use truman\DeskAccumulator;
+use truman\test\integration\DeskCallbackAccumulator;
 
 class Client_Test extends PHPUnit_Framework_TestCase {
 
@@ -19,7 +19,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 	public function testNotifyDesks() {
 
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk($port = 12345, $accumulator->optionsExpectedBucksIn());
 
 		// create an "outdated" client by not notifying desks
@@ -111,7 +111,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 		// start the desk
 		$expected = count($specs);
-		$accumulator = new DeskAccumulator();
+		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults($expected);
 		$desk = new Desk($port, $options);
 

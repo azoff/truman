@@ -1,2 +1,5 @@
+#!/usr/bin/env php
+
 <? require_once dirname(__DIR__).'/autoload.php';
-exit ( truman\Drawer::main($argv) );
+
+truman\Drawer::main($argv);

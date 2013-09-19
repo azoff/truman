@@ -1,6 +1,6 @@
-<? namespace truman;
+<? namespace truman\test\integration;
 
-class DeskAccumulator {
+class DeskCallbackAccumulator {
 
 	private $results;
 	private $bucks_in;
@@ -26,7 +26,7 @@ class DeskAccumulator {
 	}
 
 	public function optionsExpectedResults($expected_results = 0, array $desk_options = []) {
-		$handler = ['result_received_handler' => $this->fnExpectedResults($expected_results)];
+		$handler = [Desk::OPTION_RESULT_RECEIVED_HANDLER => $this->fnExpectedResults($expected_results)];
 		return $handler + $desk_options;
 	}
 
@@ -40,7 +40,7 @@ class DeskAccumulator {
 	}
 
 	public function optionsExpectedBucksIn($expected_bucks_in = 0, array $desk_options = []) {
-		$handler = ['buck_received_handler' => $this->fnExpectedBucksIn($expected_bucks_in)];
+		$handler = [Desk::OPTION_BUCK_RECEIVED_HANDLER => $this->fnExpectedBucksIn($expected_bucks_in)];
 		return $handler + $desk_options;
 	}
 
@@ -54,7 +54,7 @@ class DeskAccumulator {
 	}
 
 	public function optionsExpectedBucksOut($expected_bucks_out = 0, array $desk_options = []) {
-		$handler = ['buck_processed_handler' => $this->fnExpectedBucksOut($expected_bucks_out)];
+		$handler = [Desk::OPTION_BUCK_PROCESSED_HANDLER => $this->fnExpectedBucksOut($expected_bucks_out)];
 		return $handler + $desk_options;
 	}
 
