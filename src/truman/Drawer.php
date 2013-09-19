@@ -81,8 +81,10 @@ class Drawer implements \JsonSerializable {
 
 		$input = fgets(reset($inputs));
 		$buck  = Util::streamDataDecode($input);
-		$valid = $buck instanceof Buck;
 
+		if (is_null($buck)) return -1;
+
+		$valid = $buck instanceof Buck;
 		if ($valid) $this->log("received {$buck}", 'bucks_received');
 		else return $this->log('received unrecognized input, ignoring...', 'errors');
 
@@ -94,7 +96,7 @@ class Drawer implements \JsonSerializable {
 
 		if (isset($data->retval) && $data->retval === self::KILLCODE) {
 			$this->log("received KILL code, exiting...", 'bucks_received');
-			return -1;
+			return 0;
 		}
 
 		return -1;
