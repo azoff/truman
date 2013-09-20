@@ -75,24 +75,4 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		unlink($path);
 	}
 
-	public function testMain() {
-		$buck   = new Buck('killDrawer');
-		$path   = Util::tempFifo();
-		$read  = fopen($path, 'r');
-		$write = fopen($path, 'w');
-		Util::writeObjectToStream($buck, $write);
-		$this->assertEquals(0, Drawer::main([], [
-			'stream_input'  => $read,
-			'stream_output' => $write
-		]));
-		$result = Util::readObjectFromStream($read);
-		$this->assertInstanceOf('truman\Result', $result);
-		$this->assertInstanceOf('stdClass', $data = $result->data());
-		$this->assertObjectHasAttribute('buck', $data);
-		$this->assertEquals($buck, $data->buck);
-		fclose($read);
-		fclose($write);
-		unlink($path);
-	}
-
 }

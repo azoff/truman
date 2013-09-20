@@ -3,7 +3,6 @@
 class Buck implements \JsonSerializable {
 
 	const CALLABLE_NOOP   = '__NOOP__';
-	const CALLABLE_NOTIFY = '__NOTIFY__';
 
 	const CHANNEL_DEFAULT = 'default';
 
@@ -124,17 +123,10 @@ class Buck implements \JsonSerializable {
 		return $this->callable === self::CALLABLE_NOOP;
 	}
 
-	public function isNotification() {
-		return $this->callable === self::CALLABLE_NOTIFY;
-	}
-
 	public function invoke() {
 
 		if ($this->isNoop())
 			return null;
-
-		if ($this->isNotification())
-			return reset($this->args);
 
 		try {
 

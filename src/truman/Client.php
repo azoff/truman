@@ -102,9 +102,17 @@ class Client implements \JsonSerializable {
 	}
 
 	public function getDeskSpec(Buck $buck) {
-		$channel_name = $buck->getChannel();
-		$channel      = $this->channels[$channel_name];
-		$target       = $channel->getTarget($buck);
+
+		if (!isset($this->channels[$channel_name = $buck->getChannel()]))
+			throw new Exception('Unable to find definition for channel', [
+				'channel' => $channel_name,
+				'context' => $this,
+				'method'  => __METHOD__,
+				'buck'    => $buck
+			]);
+
+		$channel = $this->channels[$channel_name];
+		$target  = $channel->getTarget($buck);
 		return $this->desk_specs[$target];
 	}
 
@@ -123,7 +131,7 @@ class Client implements \JsonSerializable {
 
 	public function newNotificationBuck() {
 		$signature = $this->getSignature();
-		return new Buck(Buck::CALLABLE_NOTIFY, [$signature], array(
+		return new Buck(Buck::CALLABLE_NOOP, [$signature], array(
 			'client_signature' => $signature,
 			'priority'         => Buck::PRIORITY_URGENT
 		));

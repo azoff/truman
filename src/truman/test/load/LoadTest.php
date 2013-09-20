@@ -7,8 +7,8 @@ use truman\Util;
 
 class LoadTest {
 
-	private $bucks_enqueued = 0;
-	private $bucks_running  = 0;
+	private $bucks_enqueued  = 0;
+	private $bucks_running   = 0;
 	private $bucks_completed = 0;
 
 	private $desks    = [];

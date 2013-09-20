@@ -22,6 +22,7 @@ class Desk implements \JsonSerializable {
 	private $continue;
 	private $processes;
 	private $process_pids;
+	private $process_ready;
 	private $stdins, $stdouts, $stderrs;
 	private $inbound_socket;
 
@@ -40,7 +41,6 @@ class Desk implements \JsonSerializable {
 
 	private static $_DEFAULT_OPTIONS = [
 		'client_signature'   => '',
-		'spawn'              => 3,
 		'include'            => array(),
 		'log_drawer_errors'  => true,
 		'log_socket_errors'  => true,
@@ -48,6 +48,7 @@ class Desk implements \JsonSerializable {
 		'log_client_reroute' => true,
 		'log_dropped_bucks'  => true,
 		'log_tick_work'      => true,
+		self::OPTION_DRAWER_COUNT            => 3,
 		self::OPTION_BUCK_RECEIVED_HANDLER   => null,
 		self::OPTION_BUCK_PROCESSED_HANDLER  => null,
 		self::OPTION_RESULT_RECEIVED_HANDLER => null,
@@ -58,7 +59,7 @@ class Desk implements \JsonSerializable {
 		$options += self::$_DEFAULT_OPTIONS;
 
 		$this->id       = uniqid(microtime(true), true);
-		$this->tracking = array();
+		$this->tracking = [];
 		$this->waiting  = new \SplPriorityQueue();
 
 		if (!is_null($inbound_host_spec)) {
@@ -183,7 +184,12 @@ class Desk implements \JsonSerializable {
 		}
 
 		if ($extracted->getUUID() !== $uuid)
-			error_log("{$this} dequeue mismatch: expected {$buck}, dequeued {$extracted}");
+			throw new Exception('Unexpected Buck dequeued', [
+				'context'  => $this,
+				'expected' => $buck,
+				'dequeued' => $extracted,
+				'method'   => __METHOD__
+			]);
 
 		return $extracted;
 
@@ -211,6 +217,7 @@ class Desk implements \JsonSerializable {
 
 		// stop tracking the process
 		unset($this->process_pids[$key]);
+		unset($this->process_ready[$key]);
 		unset($this->stdins[$key]);
 		unset($this->stdouts[$key]);
 		unset($this->stderrs[$key]);
@@ -219,6 +226,10 @@ class Desk implements \JsonSerializable {
 	}
 
 	public function ownsBuck(Buck $buck) {
+
+		// always own noop bucks
+		if ($buck->isNoop())
+			return true;
 
 		// assume ownership if no client is available
 		if (!($client = $this->getClient()))
@@ -268,10 +279,6 @@ class Desk implements \JsonSerializable {
 		// update client signature, if one exists
 		if ($buck->hasClientSignature())
 			$this->updateClient($buck->getClient());
-
-		// run notification bucks locally
-		if ($buck->isNotification())
-			return $this->dequeueBuck($buck);
 
 		// check to see if the client agrees that buck belongs here
 		if (!$this->ownsBuck($buck)) {
@@ -344,7 +351,6 @@ class Desk implements \JsonSerializable {
 			$valid  = $result instanceof Result;
 
 			if (!$valid) continue;
-
 			$data = $result->data();
 
 			if ($this->log_drawer_errors) {
@@ -364,6 +370,8 @@ class Desk implements \JsonSerializable {
 
 			if ($data && isset($data->buck))
 				$this->dequeueBuck($data->buck);
+
+			$this->process_ready[$key] = true;
 
 			return $result;
 
@@ -394,11 +402,14 @@ class Desk implements \JsonSerializable {
 		if (!stream_select($i, $streams, $j, $timeout))
 			return null;
 
-		// pick a random available drawer
-		$key = array_rand($streams, 1);
-		$stream = $streams[$key];
+		foreach ($streams as $key => $stream) {
+			if (!$this->process_ready[$key]) continue;
+			$this->process_ready[$key] = false;
+			$stream = $streams[$key];
+			return Util::writeObjectToStream($buck, $stream);
+		}
 
-		return Util::writeObjectToStream($buck, $stream);
+		return null;
 
 	}
 
@@ -453,11 +464,12 @@ class Desk implements \JsonSerializable {
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 
-		$this->process_pids[$key] = $process_pid;
-		$this->processes[$key]    = $process;
-		$this->stdins[$key]       = $stdin;
-		$this->stdouts[$key]      = $stdout;
-		$this->stderrs[$key]      = $stderr;
+		$this->process_ready[$key] = true;
+		$this->process_pids[$key]  = $process_pid;
+		$this->processes[$key]     = $process;
+		$this->stdins[$key]        = $stdin;
+		$this->stdouts[$key]       = $stdout;
+		$this->stderrs[$key]       = $stderr;
 
 	}
 

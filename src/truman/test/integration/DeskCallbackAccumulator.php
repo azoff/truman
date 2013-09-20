@@ -1,5 +1,9 @@
 <? namespace truman\test\integration;
 
+use truman\Desk;
+use truman\Buck;
+use truman\Result;
+
 class DeskCallbackAccumulator {
 
 	private $results;
