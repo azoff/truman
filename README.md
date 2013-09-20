@@ -5,7 +5,7 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Finish render for load testing
+- Force jobs to stay in queue if drawers aren't ready
 - Ensure tests still work
 - Create an example client/server
 - Add wrapper (convenience) class

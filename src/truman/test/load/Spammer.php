@@ -13,15 +13,14 @@ class Spammer {
 		'timeout'          => 0,
 		'job_duration_max' => 2000000, // max two seconds running jobs
 		'job_delay_max'    => 2000000, // max two seconds between sending jobs
-		'log_spams'        => true
 	];
 
 	public static function main(array $argv, array $options = null) {
 		$options = $options ?: [];
 		$desk_specs = Util::get_args($argv);
 		try {
-			$drawer = new Spammer($desk_specs, $options);
-			exit($drawer->poll());
+			$spammer = new Spammer($desk_specs, $options);
+			exit($spammer->poll());
 		} catch (Exception $ex) {
 			$pid = getmypid();
 			error_log("Spammer<{$pid}> {$ex->getMessage()}");
@@ -45,7 +44,7 @@ class Spammer {
 		declare(ticks = 1);
 		do $status = $this->tick();
 		while($status < 0);
-		return $status;
+		return (int) $status;
 	}
 
 	public function tick() {
@@ -53,9 +52,6 @@ class Spammer {
 		// send buck
 		if (is_null($buck = $this->spam()))
 			return -1;
-
-		if ($this->options['log_spams'])
-			error_log("{$this} spammed {$buck}");
 
 		// wait for a bit until ending this tick
 		$max_delay = $this->options['job_delay_max'];
@@ -69,7 +65,7 @@ class Spammer {
 	public function spam() {
 		$max_job_duration = $this->options['job_duration_max'];
 		$job_duration = [rand(1, $max_job_duration)];
-		$buck = new Buck('truman\test\load\Spam::work', $job_duration);
+		$buck = new Buck('truman\test\load\Spammer::work', $job_duration);
 		return $this->client->sendBuck($buck);
 	}
 

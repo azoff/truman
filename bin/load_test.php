@@ -6,11 +6,12 @@ use truman\Util;
 use truman\test\load\LoadTest;
 
 $options = Util::get_options([
-	'n' => 'desks::',
-	'c' => 'clients::',
-	'r' => 'drawers::',
-	'd' => 'job_delay_max::',
-	'u' => 'job_duration_max::'
+	'n::' => 'desks::',
+	'r::' => 'drawers::',
+	's::' => 'spammers::',
+	'a::' => 'refresh_rate::',
+	'd::' => 'job_delay_max::',
+	'u::' => 'job_duration_max::'
 ]);
 
 LoadTest::main($options);

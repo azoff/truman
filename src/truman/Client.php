@@ -49,7 +49,7 @@ class Client implements \JsonSerializable {
 	}
 
 	public function addDeskSpec($desk_spec = null, $desk_notification_timeout = 0) {
-		if (is_int($desk_spec))
+		if (is_numeric($desk_spec))
 			$desk_spec = ['port' => $desk_spec];
 		if (is_string($desk_spec))
 			$desk_spec = parse_url($desk_spec);
@@ -123,7 +123,7 @@ class Client implements \JsonSerializable {
 
 	public function newNotificationBuck() {
 		$signature = $this->getSignature();
-		return new Buck(Buck::CALLABLE_NOOP, [$signature], array(
+		return new Buck(Buck::CALLABLE_NOTIFY, [$signature], array(
 			'client_signature' => $signature,
 			'priority'         => Buck::PRIORITY_URGENT
 		));
@@ -148,7 +148,7 @@ class Client implements \JsonSerializable {
 
 	public function sendBuck(Buck $buck, $timeout = 0) {
 		$socket = $this->getDeskSocket($buck);
-		if ($socket->send($buck, null, $timeout))
+		if (!$socket->send($buck, null, $timeout))
 			return null;
 		if ($this->options['log_sends'])
 			error_log("{$this} sent {$buck} to {$socket}");

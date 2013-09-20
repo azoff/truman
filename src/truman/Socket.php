@@ -244,7 +244,7 @@ class Socket implements \JsonSerializable {
 
 		foreach ($connections as $connection) {
 
-			$message = \socket_read($connection, $read_limit, PHP_NORMAL_READ);
+			$message = @\socket_read($connection, $read_limit, PHP_NORMAL_READ);
 
 			// close out sockets that don't provide any data
 			if ($message === false) $this->closeConnection($connection);

@@ -131,12 +131,12 @@ class Desk implements \JsonSerializable {
 			unset($this->inbound_socket);
 		}
 		if (count($this->processes))
-			foreach ($this->drawerKeys() as $key)
+			foreach ($this->getDrawerKeys() as $key)
 				$this->killDrawer($key);
 	}
 
 	public function __toString() {
-		$count = $this->drawerCount();
+		$count = $this->getDrawerCount();
 		return "Desk<{$this->inbound_socket}>[{$count}]";
 	}
 
@@ -144,11 +144,11 @@ class Desk implements \JsonSerializable {
 		return $this->__toString();
 	}
 
-	public function drawerCount() {
+	public function getDrawerCount() {
 		return count($this->processes);
 	}
 
-	public function drawerKeys() {
+	public function getDrawerKeys() {
 		return array_keys($this->processes);
 	}
 
@@ -269,8 +269,8 @@ class Desk implements \JsonSerializable {
 		if ($buck->hasClientSignature())
 			$this->updateClient($buck->getClient());
 
-		// always process noop bucks locally
-		if ($buck->isNoop())
+		// run notification bucks locally
+		if ($buck->isNotification())
 			return $this->dequeueBuck($buck);
 
 		// check to see if the client agrees that buck belongs here
@@ -290,9 +290,9 @@ class Desk implements \JsonSerializable {
 
 	}
 
-	public function activeDrawerCount() {
-		$count = $this->drawerCount();
-		foreach ($this->drawerKeys() as $key)
+	public function getActiveDrawerCount() {
+		$count = $this->getDrawerCount();
+		foreach ($this->getDrawerKeys() as $key)
 			if (!$this->isAlive($key))
 				$count--;
 		return $count;
@@ -300,7 +300,7 @@ class Desk implements \JsonSerializable {
 
 	public function reapDrawers() {
 
-		foreach ($this->drawerKeys() as $key) {
+		foreach ($this->getDrawerKeys() as $key) {
 			if (!$this->isAlive($key)) {
 				if ($this->log_drawer_errors)
 					error_log("{$key} is dead, {$this} respawning drawer...");

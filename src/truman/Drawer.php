@@ -62,7 +62,7 @@ class Drawer implements \JsonSerializable {
 		declare(ticks = 1);
 		do $status = $this->tick();
 		while($status < 0);
-		return $status;
+		return (int) $status;
 	}
 
 	private function log($msg, $log_option = null, $code = -1) {

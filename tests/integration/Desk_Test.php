@@ -113,19 +113,19 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
 		$desk = new Desk(null, $options);
-		$expected = $desk->drawerCount();
+		$expected = $desk->getDrawerCount();
 
-		$this->assertEquals($expected, $desk->activeDrawerCount());
+		$this->assertEquals($expected, $desk->getActiveDrawerCount());
 
 		$desk->enqueueBuck(new Buck('cleanKill'));
 		$desk->start(0, false);
 		usleep(50000); // give it some time to die...
 
-		$this->assertNotEquals($expected, $desk->activeDrawerCount());
+		$this->assertNotEquals($expected, $desk->getActiveDrawerCount());
 
 		$desk->reapDrawers();
 
-		$this->assertEquals($expected, $desk->activeDrawerCount());
+		$this->assertEquals($expected, $desk->getActiveDrawerCount());
 
 	}
 
@@ -138,19 +138,19 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
 		$desk = new Desk(null, $options);
-		$expected = $desk->drawerCount();
+		$expected = $desk->getDrawerCount();
 
-		$this->assertEquals($expected, $desk->activeDrawerCount());
+		$this->assertEquals($expected, $desk->getActiveDrawerCount());
 
 		$desk->enqueueBuck(new Buck('dirtyKill'));
 		$desk->start(0, false);
 		usleep(50000); // give it some time to die...
 
-		$this->assertNotEquals($expected, $desk->activeDrawerCount());
+		$this->assertNotEquals($expected, $desk->getActiveDrawerCount());
 
 		$desk->reapDrawers();
 
-		$this->assertEquals($expected, $desk->activeDrawerCount());
+		$this->assertEquals($expected, $desk->getActiveDrawerCount());
 
 	}
 
