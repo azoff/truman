@@ -11,10 +11,12 @@ class LoadTest {
 	private $bucks_running  = 0;
 	private $bucks_completed = 0;
 
-	private $model    = [];
-	private $spammers = [];
-	private $options  = [];
 	private $desks    = [];
+	private $spammers = [];
+	private $spammer_streams = [];
+
+	private $model    = [];
+	private $options  = [];
 	private $ports    = [];
 	private $port     = 12345;
 	private $start    = 0;
@@ -133,21 +135,18 @@ class LoadTest {
 		$command     = $this->getSpammerCommand();
 		$descriptors = Util::getStreamDescriptors();
 		$spammer     = proc_open($command, $descriptors, $streams, TRUMAN_HOME);
+		$status      = proc_get_status($spammer);
 
-		if (!is_resource($spammer))
+		if (!$status['running'])
 			throw new Exception('Unable to open spammer', [
 				'context' => $this,
 				'command' => $command,
 				'method'  => __METHOD__
 			]);
 
-		// get shell PID
-		$status = proc_get_status($spammer);
-		$pid    = $status['pid'];
-
-		usleep(100000); // give it time to start up
-
+		$pid = $status['pid'];
 		$this->spammers[$pid] = $spammer;
+		$this->spammer_streams[$pid] = $streams;
 
 		return $spammer;
 
