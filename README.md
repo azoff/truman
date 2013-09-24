@@ -5,7 +5,6 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Check if reroute is working
 - Create special bucks
   - Noop, Notification, Kill, and Reload
 - Create an example client/server

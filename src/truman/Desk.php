@@ -186,6 +186,11 @@ class Desk implements \JsonSerializable, LoggerContext {
 		return $buck;
 	}
 
+	private function nextBuck() {
+		if ($this->waiting->isEmpty()) return null;
+		return $this->waiting->top();
+	}
+
 	public function trackBuck(Buck $buck, $status) {
 		$this->tracking[$buck->getUUID()] = $status;
 		return $buck;
@@ -281,7 +286,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	public function processBuck($timeout = 0) {
 
-		$buck  = $this->dequeueBuck();
+		$buck  = $this->nextBuck();
 		$valid = $buck instanceof Buck;
 		if (!$valid) return null;
 
@@ -290,22 +295,17 @@ class Desk implements \JsonSerializable, LoggerContext {
 			$this->updateClient($buck->getClient());
 
 		// check ownership, try to reroute, reenqueue if reroute failed
-		if (!$this->ownsBuck($buck)) {
-			if ($this->rerouteBuck($buck, $timeout)) return $buck;
-			$this->enqueueBuck($buck);
-			return null;
-		}
+		if (!$this->ownsBuck($buck))
+			return $this->rerouteBuck($buck, $timeout) ? $this->dequeueBuck() : null;
 
 		// try to send the buck to the streams, or reenqueue if sending failed
-		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout)) {
-			$this->enqueueBuck($buck);
+		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
-		}
 
 		if ($this->buck_processed_handler)
 			call_user_func($this->buck_processed_handler, $buck, $this);
 
-		return $buck;
+		return $this->dequeueBuck();
 
 	}
 

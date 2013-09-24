@@ -67,6 +67,8 @@ class LoadTest {
 	}
 
 	public function update() {
+		$bytes = number_format(memory_get_peak_usage(true));
+		$mb    = number_format($bytes/1048576, 1);
 		$this->runtime = number_format(round(microtime(true) - $this->start, 4), 4);
 		$this->model['Desks']    = $this->getDeskCount();
 		$this->model['Drawers']  = 0;
@@ -76,7 +78,7 @@ class LoadTest {
 		$this->model['Bucks Enqueued']  = $this->getBucksEnqueuedCount();
 		$this->model['Bucks Running']   = $this->getBucksRunningCount();
 		$this->model['Bucks Completed'] = $this->getBucksCompletedCount();
-		$this->model['Memory Usage (MB)'] = Util::getMemoryUsage();
+		$this->model['Memory'] = "{$bytes} bytes ({$mb}MB)";
 		foreach (sys_getloadavg() as $i => $load) {
 			if ($i === 0)      $key = 'Avg. Load Minute';
 			else if ($i === 1) $key = 'Avg. Load 5 Minutes';

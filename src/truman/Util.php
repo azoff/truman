@@ -96,8 +96,4 @@ class Util {
 		];
 	}
 
-	public static function getMemoryUsage() {
-		return memory_get_peak_usage(true) / 1048576.0000;
-	}
-
 }
