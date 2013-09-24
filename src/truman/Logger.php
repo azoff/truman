@@ -23,13 +23,18 @@ class Logger implements \JsonSerializable {
 		$this->context      = $context;
 		$options           += self::$_DEFAULT_OPTIONS;
 		$this->muted        = (bool) $options[self::PARAM_MUTED];
+		$this->destination  = $options[self::PARAM_DESTINATION];
+		$appender           = fopen($this->destination, 'a');
 
-		if (!is_writable($this->destination = $options[self::PARAM_DESTINATION]))
+		if ($appender === false) {
 			throw new Exception('unable to write to destination', [
 				'destination' => $this->destination,
 				'context'     => $this,
 				'method'      => __METHOD__
 			]);
+		}
+
+		fclose($appender);
 	}
 
 	public function __toString() {
@@ -64,9 +69,10 @@ class Logger implements \JsonSerializable {
 				'method'  => __METHOD__
 			]);
 
-		$message_parts[] = strtoupper($this->context->get_logger_type());
-		$message_parts[] = $this->context->get_logger_id();
-		$message_parts[] = strtoupper($event);
+		$message_parts[] = number_format(microtime(true), 4, '.', '');
+		$message_parts[] = str_pad(strtoupper($this->context->getLoggerType()), 6);
+		$message_parts[] = str_pad($this->context->getLoggerId(), 32);
+		$message_parts[] = str_pad(strtoupper($event), 15);
 
 		if (!is_null($data)) {
 			if (!is_string($data))
@@ -75,7 +81,7 @@ class Logger implements \JsonSerializable {
 				$message_parts[] = $data;
 		}
 
-		$message = implode(self::MESSAGE_DELIMETER, $message_parts);
+		$message = implode(self::MESSAGE_DELIMETER, $message_parts) . PHP_EOL;
 
 		if (!error_log($message, self::ERROR_LOG_MESSAGE_TYPE, $this->destination))
 			throw new Exception('unable to log event', [

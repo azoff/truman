@@ -8,7 +8,6 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 	const LOGGER_TYPE          = 'DRAWER';
 	const LOGGER_EVENT_INIT    = 'INIT';
-	const LOGGER_EVENT_POLLING = 'POLLING';
 	const LOGGER_EVENT_EXIT    = 'EXIT';
 	const LOGGER_EVENT_ERROR   = 'ERROR';
 	const LOGGER_EVENT_FATAL   = 'FATAL';
@@ -38,7 +37,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			$error = error_get_last();
 			$this->logger->log(self::LOGGER_EVENT_FATAL, $error);
 			if (isset($error['message']{0}))
-				$this->data['error'] = $error['message'];
+				$this->data['error'] = $error;
 			if ($output = ob_get_clean())
 				$this->data['output'] = $output;
 			$this->data['runtime'] += microtime(1);
@@ -86,7 +85,6 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 	public function poll() {
 		declare(ticks = 1);
-		$this->logger->log(self::LOGGER_EVENT_POLLING);
 		do $status = $this->tick();
 		while($status < 0);
 		return (int) $status;
@@ -115,7 +113,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->result_write($result);
 		$data = $result->data();
 
-		return isset($data->retval) && $data->retval === self::KILLCODE;
+		return isset($data->retval) && $data->retval === self::KILLCODE ? 0 : -1;
 
 	}
 
@@ -125,8 +123,8 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	}
 
 	private function result_log(Result $result) {
-		$data  = $result->data();
-		$buck  = $data->buck;
+		$data  = (array) $result->data();
+		$buck  = $data['buck'];
 		$event = $result->was_successful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_DELEGATE_ERROR;
 		unset($data['buck']);
 		$buck->getLogger()->log($event, $data);
@@ -150,11 +148,11 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		try {
 			$this->data['retval'] = @$buck->invoke();
 		} catch (Exception $ex) {
-			$this->data['exception'] = $ex->getMessage();
+			$this->data['exception'] = $ex;
 		}
 		$error = error_get_last();
 		if (isset($error['message']{0}))
-			$this->data['error'] = $error['message'];
+			$this->data['error'] = $error;
 		if ($output = ob_get_clean())
 			$this->data['output'] = $output;
 		$this->data['runtime'] += microtime(1);

@@ -48,7 +48,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private static $_DEFAULT_OPTIONS = [
 		'client_signature'                   => '',
 		'include'                            => [],
-		'logger_options'                     => true,
+		'logger_options'                     => [],
 		self::OPTION_DRAWER_COUNT            => 3,
 		self::OPTION_BUCK_RECEIVED_HANDLER   => null,
 		self::OPTION_BUCK_PROCESSED_HANDLER  => null,
@@ -350,10 +350,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 	public function receiveResult($timeout = 0) {
 
 		$result =
-			$this->receiveResultFromStreams($this->stderrs, $timeout) ||
+			$this->receiveResultFromStreams($this->stderrs, $timeout) ?:
 			$this->receiveResultFromStreams($this->stdouts, $timeout);
 
-		if ($result)
+		if ($this->result_received_handler && $result instanceof Result)
 			call_user_func($this->result_received_handler, $result, $this);
 
 		return $result;

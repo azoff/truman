@@ -6,11 +6,11 @@ class Client implements \JsonSerializable, LoggerContext {
 
 	const TIMEOUT_DEFAULT = 5;
 
-	const LOGGER_TYPE                     = 'CLIENT';
-	const LOGGER_EVENT_UPDATE             = 'UPDATE';
-	const LOGGER_EVENT_NOTIFY_START       = 'NOTIFY_START';
-	const LOGGER_EVENT_NOTIFY_ERROR       = 'NOTIFY_ERROR';
-	const LOGGER_EVENT_NOTIFY_COMPLETE    = 'NOTIFY_COMPLETE';
+	const LOGGER_TYPE                  = 'CLIENT';
+	const LOGGER_EVENT_INIT            = 'INIT';
+	const LOGGER_EVENT_NOTIFY_START    = 'NOTIFY_START';
+	const LOGGER_EVENT_NOTIFY_ERROR    = 'NOTIFY_ERROR';
+	const LOGGER_EVENT_NOTIFY_COMPLETE = 'NOTIFY_COMPLETE';
 
 	private $logger;
 	private $sockets;
@@ -195,7 +195,7 @@ class Client implements \JsonSerializable, LoggerContext {
 			$this->dirty = false;
 			$this->timestamp = $timestamp > 0 ? $timestamp : microtime(1);
 			$this->signature = self::toSignature($this);
-			$this->logger->log(self::LOGGER_EVENT_UPDATE, $this->signature);
+			$this->logger->log(self::LOGGER_EVENT_INIT, $this->signature);
 		}
 	}
 
