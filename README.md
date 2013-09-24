@@ -5,8 +5,9 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Verify that all events work as expected
-- Create refresh buck
+- Check if reroute is working
+- Create special bucks
+  - Noop, Notification, Kill, and Reload
 - Create an example client/server
 - Add wrapper (convenience) class
 - Add Buck::sendToSocket test

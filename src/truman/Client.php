@@ -59,7 +59,7 @@ class Client implements \JsonSerializable, LoggerContext {
 	}
 
 	public function getLoggerId() {
-		return substr($this->getSignature(), -32);
+		return md5($this->getSignature());
 	}
 
 	function __destruct() {
@@ -181,7 +181,7 @@ class Client implements \JsonSerializable, LoggerContext {
 		$socket = $destination ?: $this->getDeskSocket($buck);
 		$url = $socket->getHostAndPort();
 		$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_START, $url);
-		if ($socket->send($this, null, $timeout)) {
+		if ($socket->send($buck, null, $timeout)) {
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_COMPLETE, $url);
 			return $this;
 		} else {
@@ -190,12 +190,19 @@ class Client implements \JsonSerializable, LoggerContext {
 		}
 	}
 
+	private function getPrettySignature() {
+		$desks = [];
+		foreach ($this->desk_specs as $spec)
+			$desks[] = "{$spec['host']}:{$spec['port']}";
+		return ['desks' => $desks, 'timestamp' => $this->timestamp];
+	}
+
 	public function updateInternals($timestamp = 0) {
 		if (!isset($this->dirty) || $this->dirty) {
 			$this->dirty = false;
-			$this->timestamp = $timestamp > 0 ? $timestamp : microtime(1);
+			$this->timestamp = number_format($timestamp > 0 ? $timestamp : microtime(1), 4, '.', '');
 			$this->signature = self::toSignature($this);
-			$this->logger->log(self::LOGGER_EVENT_INIT, $this->signature);
+			$this->logger->log(self::LOGGER_EVENT_INIT, $this->getPrettySignature());
 		}
 	}
 

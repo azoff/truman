@@ -73,13 +73,7 @@ class Logger implements \JsonSerializable {
 		$message_parts[] = str_pad(strtoupper($this->context->getLoggerType()), 6);
 		$message_parts[] = str_pad($this->context->getLoggerId(), 32);
 		$message_parts[] = str_pad(strtoupper($event), 15);
-
-		if (!is_null($data)) {
-			if (!is_string($data))
-				$data = json_encode($data);
-			if (strlen($data))
-				$message_parts[] = $data;
-		}
+		$message_parts[] = !$data ? '' : json_encode($data);
 
 		$message = implode(self::MESSAGE_DELIMETER, $message_parts) . PHP_EOL;
 

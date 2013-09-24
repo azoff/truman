@@ -13,6 +13,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_START         = 'START';
 	const LOGGER_EVENT_STOP          = 'STOP';
 	const LOGGER_EVENT_REAPED        = 'REAPED';
+	const LOGGER_EVENT_RECEIVE_ERROR = 'RECEIVE_ERROR';
 	const LOGGER_EVENT_BUCK_REROUTE  = 'BUCK_REROUTE';
 	const LOGGER_EVENT_CLIENT_IGNORE = 'CLIENT_IGNORE';
 	const LOGGER_EVENT_CLIENT_UPDATE = 'CLIENT_UPDATE';
@@ -334,9 +335,14 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (!isset($this->inbound_socket))
 			return null;
 
-		$buck = $this->inbound_socket->receive($timeout);
+		if (is_null($buck = $this->inbound_socket->receive($timeout)))
+			return null;
+
 		$valid = $buck instanceof Buck;
-		if (!$valid) return null;
+		if (!$valid) {
+			$this->logger->log(self::LOGGER_EVENT_RECEIVE_ERROR, $buck);
+			return null;
+		}
 
 		$buck->getLogger()->log(Buck::LOGGER_EVENT_RECEIVED, $this->getLoggerId());
 
