@@ -41,6 +41,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			if ($output = ob_get_clean())
 				$this->data['output'] = $output;
 			$this->data['runtime'] += microtime(1);
+			$this->data['memory'] = memory_get_usage(true);
 
 			$result = new Result(false, (object) $this->data);
 			$this->result_log($result);
@@ -156,6 +157,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		if ($output = ob_get_clean())
 			$this->data['output'] = $output;
 		$this->data['runtime'] += microtime(1);
+		$this->data['memory']   = memory_get_usage(true);
 
 		Buck::unsetThreadContext($pid);
 

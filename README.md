@@ -7,6 +7,7 @@ TODO
 ----
 - Create special bucks
   - Noop, Notification, Kill, and Reload
+- Add drawer memory to the Load Test
 - Create an example client/server
 - Add wrapper (convenience) class
 - Add Buck::sendToSocket test

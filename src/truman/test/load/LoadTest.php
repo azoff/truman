@@ -67,8 +67,9 @@ class LoadTest {
 	}
 
 	public function update() {
-		$bytes = number_format(memory_get_peak_usage(true));
-		$mb    = number_format($bytes/1048576, 1);
+		$usage = memory_get_peak_usage(true);
+		$bytes = number_format($usage);
+		$mb    = number_format($usage/1048576.0, 1);
 		$this->runtime = number_format(round(microtime(true) - $this->start, 4), 4);
 		$this->model['Desks']    = $this->getDeskCount();
 		$this->model['Drawers']  = 0;
