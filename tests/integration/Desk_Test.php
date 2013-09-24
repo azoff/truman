@@ -32,6 +32,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertNotNull($first);
 		$this->assertNull($second);
 		$this->assertEquals(1, $desk->waitingCount());
+		$desk->__destruct();
 	}
 
 	public function testPriority() {
@@ -45,6 +46,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($high, $desk->processBuck());
 		$this->assertEquals($medium, $desk->processBuck());
 		$this->assertEquals($low, $desk->processBuck());
+		$desk->__destruct();
 	}
 
 	public function testBuck() {
@@ -74,9 +76,9 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testOutput() {
-		$buck = new Buck('phpcredits');
+		$buck = new Buck('passthru', ['hostname']);
 		$data = $this->resultAttributeTest($buck, 'output');
-		$this->assertContains('PHP Credits', $data->output);
+		$this->assertContains(gethostname(), $data->output);
 	}
 
 	public function testBuckSocket() {
@@ -126,6 +128,8 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$desk->reapDrawers();
 
 		$this->assertEquals($expected, $desk->getActiveDrawerCount());
+
+		$desk->__destruct();
 
 	}
 

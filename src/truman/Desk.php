@@ -290,7 +290,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 			$this->updateClient($buck->getClient());
 
 		// check ownership, try to reroute, reenqueue if reroute failed
-		if (!$this->ownsBuck($buck) && !$this->rerouteBuck($buck, $timeout)) {
+		if (!$this->ownsBuck($buck)) {
+			if ($this->rerouteBuck($buck, $timeout)) return $buck;
 			$this->enqueueBuck($buck);
 			return null;
 		}

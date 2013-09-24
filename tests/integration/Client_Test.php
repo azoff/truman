@@ -94,38 +94,46 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 	public function testBuckReRouting() {
 
-		// get all network addresses
-		$port = 12345;
+		// all traffic will be sent to port 12345
 
-		// add the first interface twice, to test caching
-		$interfaces = ['localhost', '127.0.0.1'];
+		// create a client/server for 127.0.0.1
+		$desk   = new Desk(12345);
+		$buck   = new Buck('gethostname');
+		$client = new Client('127.0.0.1:12345');
+		$client->sendBuck($buck);
 
-		// build specifications
-		$specs = array();
-		foreach ($interfaces as $i => $interface)
-			$specs[] = array(
-				'host' => $interface,
-				'port' => $port,
-				'channels' => "channel_{$i}"
-			);
+		// the desk should receive a client notification and the job we made
+		while ($desk->receiveBuck());
+		$this->assertEquals(2, $desk->waitingCount());
 
-		// start the desk
-		$expected = count($specs);
-		$accumulator = new DeskCallbackAccumulator();
-		$options = $accumulator->optionsExpectedResults($expected);
-		$desk = new Desk($port, $options);
+		// now, have the desk process the client notification
+		// so that it knows about the network topography
+		$this->assertNull($desk->getClient());
+		$this->assertNotNull($notification = $desk->processBuck());
+		$this->assertNotEquals($notification->getUUID(), $buck->getUUID());
+		$this->assertNotNull($old_client = $desk->getClient());
+		$this->assertEquals($client->getTopography(), $old_client->getTopography());
 
-		// start the client
-		$client = new Client($specs);
+		// change the network topography by using the intranet IP.
+		// this will implicitly send another client update to the desk
+		$intranet_ip = exec('ifconfig eth0| grep \'inet addr:\' | cut -d: -f2 | awk \'{ print $1}\'');
+		$client = new Client("{$intranet_ip}:12345");
+		while ($desk->receiveBuck());
+		$this->assertNotNull($notification = $desk->processBuck());
+		$this->assertNotEquals($notification->getUUID(), $buck->getUUID());
+		$this->assertNotNull($new_client = $desk->getClient());
+		$this->assertNotEquals($old_client->getTopography(), $new_client->getTopography());
+		$this->assertEquals($client->getTopography(), $new_client->getTopography());
 
-		// send a buck to each interface
-		foreach ($specs as $spec) {
-			$options = ['channel' => $spec['channels']];
-			$buck = new Buck('gethostname', [$spec['host']], $options);
-			$client->sendBuck($buck);
-		}
+		// now process the buck, it should be rerouted and dequeued
+		$this->assertNotNull($routed = $desk->processBuck());
+		$this->assertEquals($routed->getUUID(), $buck->getUUID());
 
-		$desk->start();
+		// now receive and process the buck over the localhost interface
+		while ($desk->receiveBuck());
+		$this->assertGreaterThan(0, $desk->waitingCount());
+		$this->assertEquals($buck->getUUID(), $desk->processBuck()->getUUID());
+		$this->assertLessThan(1, $desk->waitingCount());
 
 		$desk->__destruct();
 

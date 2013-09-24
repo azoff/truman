@@ -190,7 +190,7 @@ class Client implements \JsonSerializable, LoggerContext {
 		}
 	}
 
-	private function getPrettySignature() {
+	public function getTopography() {
 		$desks = [];
 		foreach ($this->desk_specs as $spec)
 			$desks[] = "{$spec['host']}:{$spec['port']}";
@@ -202,7 +202,7 @@ class Client implements \JsonSerializable, LoggerContext {
 			$this->dirty = false;
 			$this->timestamp = number_format($timestamp > 0 ? $timestamp : microtime(1), 4, '.', '');
 			$this->signature = self::toSignature($this);
-			$this->logger->log(self::LOGGER_EVENT_INIT, $this->getPrettySignature());
+			$this->logger->log(self::LOGGER_EVENT_INIT, $this->getTopography());
 		}
 	}
 

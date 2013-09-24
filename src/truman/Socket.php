@@ -115,7 +115,7 @@ class Socket implements \JsonSerializable {
 				$this->throwError("Unable to connect to {$this->options['host']}:{$this->options['port']}",
 					$this->socket);
 
-			if (\socket_getpeername($this->socket, $this->host, $this->port) === false)
+			if (@\socket_getpeername($this->socket, $this->host, $this->port) === false)
 				$this->throwError('Unable to get peer name', $this->socket);
 
 			$this->client_mode = false;
