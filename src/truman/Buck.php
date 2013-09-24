@@ -1,10 +1,28 @@
 <? namespace truman;
 
-class Buck implements \JsonSerializable {
+use truman\interfaces\LoggerContext;
+
+class Buck implements \JsonSerializable, LoggerContext {
 
 	const CALLABLE_NOOP   = '__NOOP__';
 
 	const CHANNEL_DEFAULT = 'default';
+
+	const LOGGER_TYPE                    = 'BUCK';
+	const LOGGER_EVENT_INIT              = 'INIT';
+	const LOGGER_EVENT_SEND_START        = 'SEND_START';
+	const LOGGER_EVENT_SEND_COMPLETE     = 'SEND_COMPLETE';
+	const LOGGER_EVENT_SEND_ERROR        = 'SEND_ERROR';
+	const LOGGER_EVENT_RECEIVED          = 'RECEIVED';
+	const LOGGER_EVENT_ENQUEUED          = 'ENQUEUED';
+	const LOGGER_EVENT_DEQUEUED          = 'DEQUEUED';
+	const LOGGER_EVENT_DEDUPED           = 'DEDUPLICATED';
+	const LOGGER_EVENT_DELEGATE_START    = 'DELEGATE_START';
+	const LOGGER_EVENT_DELEGATE_COMPLETE = 'DELEGATE_COMPLETE';
+	const LOGGER_EVENT_DELEGATE_ERROR    = 'DELEGATE_ERROR';
+	const LOGGER_EVENT_EXECUTE_START     = 'EXECUTE_START';
+	const LOGGER_EVENT_EXECUTE_ERROR     = 'EXECUTE_ERROR';
+	const LOGGER_EVENT_EXECUTE_COMPLETE  = 'EXECUTE_COMPLETE';
 
 	const PRIORITY_LOW     = 1024;
 	const PRIORITY_MEDIUM  = 2048;
@@ -12,6 +30,7 @@ class Buck implements \JsonSerializable {
 	const PRIORITY_URGENT  = PHP_INT_MAX;
 
 	private $uuid;
+	private $logger;
 	private $priority;
 	private $callable;
 	private $channel;
@@ -26,6 +45,7 @@ class Buck implements \JsonSerializable {
 		'channel'          => self::CHANNEL_DEFAULT,
 		'allow_closures'   => false,
 		'client_signature' => '',
+		'logger_options'   => [],
 		'context'          => null,
 	);
 
@@ -65,6 +85,27 @@ class Buck implements \JsonSerializable {
 				'method'  => __METHOD__
 			]);
 
+		$this->logger = new Logger($this, $options['logger_options']);
+
+		$this->logger->log(self::LOGGER_EVENT_INIT, [
+			'callable' => $this->callable,
+			'args'     => $this->args,
+			'priority' => $this->priority,
+			'channel'  => $this->channel
+		]);
+
+	}
+
+	public function getLogger() {
+		return $this->logger;
+	}
+
+	public function getLoggerId() {
+		return $this->getUUID();
+	}
+
+	public function getLoggerType() {
+		return self::LOGGER_TYPE;
 	}
 
 	public function __toString() {

@@ -1,9 +1,18 @@
 <? namespace truman;
 
-class Client implements \JsonSerializable {
+use truman\interfaces\LoggerContext;
+
+class Client implements \JsonSerializable, LoggerContext {
 
 	const TIMEOUT_DEFAULT = 5;
 
+	const LOGGER_TYPE                     = 'CLIENT';
+	const LOGGER_EVENT_UPDATE             = 'UPDATE';
+	const LOGGER_EVENT_NOTIFY_START       = 'NOTIFY_START';
+	const LOGGER_EVENT_NOTIFY_ERROR       = 'NOTIFY_ERROR';
+	const LOGGER_EVENT_NOTIFY_COMPLETE    = 'NOTIFY_COMPLETE';
+
+	private $logger;
 	private $sockets;
 	private $options;
 	private $channels;
@@ -14,7 +23,7 @@ class Client implements \JsonSerializable {
 	private $signature;
 
 	private static $_DEFAULT_OPTIONS = [
-		'log_sends' => true,
+		'logger_options' => [],
 		'desk_notification_timeout' => 0
 	];
 
@@ -23,21 +32,34 @@ class Client implements \JsonSerializable {
 		$this->channels   = [];
 		$this->desk_specs = [];
 		$this->options = $options + self::$_DEFAULT_OPTIONS;
-		$desk_notification_timeout = $this->options['desk_notification_timeout'];
 		if (is_array($desk_specs) && !Util::isKeyedArray($desk_specs))
-			$this->addDeskSpecs($desk_specs, $desk_notification_timeout);
+			$this->addDeskSpecs($desk_specs, -1);
 		else if (!is_null($desk_specs))
-			$this->addDeskSpec($desk_specs, $desk_notification_timeout);
+			$this->addDeskSpec($desk_specs, -1);
+		$this->logger = new Logger($this, $this->options['logger_options']);
+		$this->notifyDesks($this->options['desk_notification_timeout']);
 	}
 
 	public function __toString() {
 		$count = $this->getDeskCount();
-		$sig = substr($this->getSignature(), -22);
-		return "Client<{$sig}>[{$count}]";
+		$id    = $this->getLoggerId();
+		return "Client<{$id}>[{$count}]";
 	}
 
 	public function jsonSerialize() {
 		return $this->__toString();
+	}
+
+	public function getLogger() {
+		return $this->logger;
+	}
+
+	public function getLoggerType() {
+		return self::LOGGER_TYPE;
+	}
+
+	public function getLoggerId() {
+		return substr($this->getSignature(), -32);
 	}
 
 	function __destruct() {
@@ -129,38 +151,43 @@ class Client implements \JsonSerializable {
 		return $this->timestamp;
 	}
 
-	public function newNotificationBuck() {
-		$signature = $this->getSignature();
-		return new Buck(Buck::CALLABLE_NOOP, [$signature], array(
-			'client_signature' => $signature,
-			'priority'         => Buck::PRIORITY_URGENT
-		));
-	}
 
 	public function notifyDesks($timeout = 0) {
 		if ($timeout < 0) return;
 		if (isset($this->notified) && !$this->notified) {
-			$buck = $this->newNotificationBuck();
+			$signature    = $this->getSignature();
+			$notification = new Buck(Buck::CALLABLE_NOOP, [$signature], array(
+				'client_signature' => $signature,
+				'priority'         => Buck::PRIORITY_URGENT
+			));
+			$this->logger->log(self::LOGGER_EVENT_NOTIFY_START, $signature);
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = $this->createOrGetSocket($target, $desk_spec);
-				if (!$socket->send($buck, null, $timeout))
+				if (!$this->sendBuck($notification, $timeout, $socket)) {
+					$this->logger->log(self::LOGGER_EVENT_NOTIFY_ERROR, $socket->getHostAndPort());
 					throw new Exception('Unable to notify socket about new client signature', [
 						'context' => $this,
 						'socket'  => $socket,
 						'method'  => __METHOD__
 					]);
+				}
 			}
+			$this->logger->log(self::LOGGER_EVENT_NOTIFY_COMPLETE);
 			$this->notified = true;
 		}
 	}
 
-	public function sendBuck(Buck $buck, $timeout = 0) {
-		$socket = $this->getDeskSocket($buck);
-		if (!$socket->send($buck, null, $timeout))
+	public function sendBuck(Buck $buck, $timeout = 0, Socket $destination = null) {
+		$socket = $destination ?: $this->getDeskSocket($buck);
+		$url = $socket->getHostAndPort();
+		$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_START, $url);
+		if ($socket->send($this, null, $timeout)) {
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_COMPLETE, $url);
+			return $this;
+		} else {
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_ERROR, $url);
 			return null;
-		if ($this->options['log_sends'])
-			error_log("{$this} sent {$buck} to {$socket}");
-		return $buck;
+		}
 	}
 
 	public function updateInternals($timestamp = 0) {
@@ -168,6 +195,7 @@ class Client implements \JsonSerializable {
 			$this->dirty = false;
 			$this->timestamp = $timestamp > 0 ? $timestamp : microtime(1);
 			$this->signature = self::toSignature($this);
+			$this->logger->log(self::LOGGER_EVENT_UPDATE, $this->signature);
 		}
 	}
 

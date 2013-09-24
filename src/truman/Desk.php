@@ -1,9 +1,21 @@
 <? namespace truman;
 
-class Desk implements \JsonSerializable {
+use truman\interfaces\LoggerContext;
 
-	const STATE_WAITING = 'waiting';
-	const STATE_RUNNING = 'running';
+class Desk implements \JsonSerializable, LoggerContext {
+
+	const STATE_ENQUEUED  = 'ENQUEUED';
+	const STATE_DELEGATED = 'DELEGATED';
+	const STATE_MISSING   = 'MISSING';
+
+	const LOGGER_TYPE                = 'DESK';
+	const LOGGER_EVENT_INIT          = 'INIT';
+	const LOGGER_EVENT_START         = 'START';
+	const LOGGER_EVENT_STOP          = 'STOP';
+	const LOGGER_EVENT_REAPED        = 'REAPED';
+	const LOGGER_EVENT_BUCK_REROUTE  = 'BUCK_REROUTE';
+	const LOGGER_EVENT_CLIENT_IGNORE = 'CLIENT_IGNORE';
+	const LOGGER_EVENT_CLIENT_UPDATE = 'CLIENT_UPDATE';
 
 	const OPTION_DRAWER_COUNT            = 'drawer_count';
 	const OPTION_BUCK_RECEIVED_HANDLER   = 'buck_received_handler';
@@ -16,6 +28,7 @@ class Desk implements \JsonSerializable {
 
 	private $id;
 	private $client;
+	private $logger;
 	private $waiting;
 	private $tracking;
 	private $command;
@@ -26,13 +39,6 @@ class Desk implements \JsonSerializable {
 	private $stdins, $stdouts, $stderrs;
 	private $inbound_socket;
 
-	private $log_drawer_errors;
-	private $log_socket_errors;
-	private $log_client_updates;
-	private $log_client_reroute;
-	private $log_dropped_bucks;
-	private $log_tick_work;
-
 	private $buck_received_handler;
 	private $buck_processed_handler;
 	private $result_received_handler;
@@ -40,14 +46,9 @@ class Desk implements \JsonSerializable {
 	private static $_KNOWN_HOSTS = [];
 
 	private static $_DEFAULT_OPTIONS = [
-		'client_signature'   => '',
-		'include'            => array(),
-		'log_drawer_errors'  => true,
-		'log_socket_errors'  => true,
-		'log_client_updates' => true,
-		'log_client_reroute' => true,
-		'log_dropped_bucks'  => true,
-		'log_tick_work'      => true,
+		'client_signature'                   => '',
+		'include'                            => [],
+		'logger_options'                     => true,
 		self::OPTION_DRAWER_COUNT            => 3,
 		self::OPTION_BUCK_RECEIVED_HANDLER   => null,
 		self::OPTION_BUCK_PROCESSED_HANDLER  => null,
@@ -74,13 +75,6 @@ class Desk implements \JsonSerializable {
 
 		if (strlen($sig = $options['client_signature']))
 			$this->client = Client::fromSignature($sig);
-
-		$this->log_drawer_errors  = (bool) $options['log_drawer_errors'];
-		$this->log_socket_errors  = (bool) $options['log_socket_errors'];
-		$this->log_client_updates = (bool) $options['log_client_updates'];
-		$this->log_client_reroute = (bool) $options['log_client_reroute'];
-		$this->log_dropped_bucks  = (bool) $options['log_dropped_bucks'];
-		$this->log_tick_work      = (bool) $options['log_tick_work'];
 
 		if (!is_null($handler = $options[self::OPTION_BUCK_RECEIVED_HANDLER])) {
 			if (!is_callable($handler))
@@ -123,6 +117,9 @@ class Desk implements \JsonSerializable {
 
 		register_shutdown_function([$this, '__destruct']);
 
+		$this->logger = new Logger($this, $options['logger_options']);
+		$this->logger->log(self::LOGGER_EVENT_INIT, array_values($this->process_pids));
+
 	}
 
 	public function __destruct() {
@@ -137,12 +134,28 @@ class Desk implements \JsonSerializable {
 	}
 
 	public function __toString() {
+		$id = $this->getLoggerId();
+		$name = $id ? "<{$id}>" : '';
 		$count = $this->getDrawerCount();
-		return "Desk<{$this->inbound_socket}>[{$count}]";
+		return "Desk{$name}[{$count}]";
 	}
 
 	public function jsonSerialize() {
 		return $this->__toString();
+	}
+
+	public function getLoggerType() {
+		return self::LOGGER_TYPE;
+	}
+
+	public function getLoggerId() {
+		if (isset($this->inbound_socket))
+			return $this->inbound_socket->getHostAndPort();
+		return '';
+	}
+
+	public function getLogger() {
+		return $this->logger;
 	}
 
 	public function getDrawerCount() {
@@ -154,45 +167,43 @@ class Desk implements \JsonSerializable {
 	}
 
 	public function enqueueBuck(Buck $buck) {
-		$uuid = $buck->getUUID();
-		if (!array_key_exists($uuid, $this->tracking)) {
-			$this->tracking[$uuid] = self::STATE_WAITING;
-			$this->waiting->insert($buck, $buck->getPriority());
+		if (!$this->isTrackingBuck($buck)) {
+			$this->waiting->insert($buck, $priority = $buck->getPriority());
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_ENQUEUED, $priority);
+			$this->trackBuck($buck, self::STATE_ENQUEUED);
 			return $buck;
-		} else if ($this->log_dropped_bucks) {
-			error_log("{$this} dropping {$buck} because it is already in the queue");
+		} else {
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_DEDUPED, $this->getBuckState($buck));
 			return null;
 		}
 	}
 
-	public function dequeueBuck(Buck $buck, $running = false) {
+	private function dequeueBuck() {
+		if ($this->waiting->isEmpty()) return null;
+		if ($buck = $this->untrackBuck($this->waiting->extract()))
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_DEQUEUED);
+		return $buck;
+	}
 
-		$extracted = $buck;
-		$uuid = $buck->getUUID();
+	public function trackBuck(Buck $buck, $status) {
+		$this->tracking[$buck->getUUID()] = $status;
+		return $buck;
+	}
 
-		if (!array_key_exists($uuid, $this->tracking))
-			return null;
+	public function untrackBuck(Buck $buck) {
+		if (!$this->isTrackingBuck($buck)) return null;
+		unset($this->tracking[$buck->getUUID()]);
+		return $buck;
+	}
 
-		if ($running) {
-			$this->tracking[$uuid] = self::STATE_RUNNING;
-			$extracted = $this->waiting->extract();
-		} else {
-			// if it's running, it's already been extracted
-			if ($this->tracking[$uuid] !== self::STATE_RUNNING)
-				$extracted = $this->waiting->extract();
-			unset($this->tracking[$uuid]);
-		}
+	public function isTrackingBuck(Buck $buck) {
+		return isset($this->tracking[$buck->getUUID()]);
+	}
 
-		if ($extracted->getUUID() !== $uuid)
-			throw new Exception('Unexpected Buck dequeued', [
-				'context'  => $this,
-				'expected' => $buck,
-				'dequeued' => $extracted,
-				'method'   => __METHOD__
-			]);
-
-		return $extracted;
-
+	public function getBuckState(Buck $buck) {
+		if ($this->isTrackingBuck($buck))
+			return $this->tracking[$buck->getUUID()];
+		return self::STATE_MISSING;
 	}
 
 	public function getClient() {
@@ -251,8 +262,6 @@ class Desk implements \JsonSerializable {
 
 		// check to see if we routed this buck to ourselves
 		if ($buck->getRoutingDeskId() === $this->id) {
-			if ($this->log_client_reroute)
-				error_log("{$this} now accepts bucks on interface {$desk_host}");
 			self::$_KNOWN_HOSTS[] = $desk_host; // cache it!
 			return true;
 		}
@@ -271,29 +280,30 @@ class Desk implements \JsonSerializable {
 
 	public function processBuck($timeout = 0) {
 
-		if ($this->waiting->isEmpty())
-			return null;
-
-		$buck = $this->waiting->top();
+		$buck  = $this->dequeueBuck();
+		$valid = $buck instanceof Buck;
+		if (!$valid) return null;
 
 		// update client signature, if one exists
 		if ($buck->hasClientSignature())
 			$this->updateClient($buck->getClient());
 
-		// check to see if the client agrees that buck belongs here
-		if (!$this->ownsBuck($buck)) {
-			// reroute if it doesn't belong here
-			if ($this->rerouteBuck($buck, $timeout))
-				return $this->dequeueBuck($buck);
+		// check ownership, try to reroute, reenqueue if reroute failed
+		if (!$this->ownsBuck($buck) && !$this->rerouteBuck($buck, $timeout)) {
+			$this->enqueueBuck($buck);
 			return null;
 		}
 
-		// if sending to stream fails, return null
-		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
+		// try to send the buck to the streams, or reenqueue if sending failed
+		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout)) {
+			$this->enqueueBuck($buck);
 			return null;
+		}
 
-		// otherwise, mark the job as running and remove it from the queue
-		return $this->dequeueBuck($buck, true);
+		if ($this->buck_processed_handler)
+			call_user_func($this->buck_processed_handler, $buck, $this);
+
+		return $buck;
 
 	}
 
@@ -309,8 +319,7 @@ class Desk implements \JsonSerializable {
 
 		foreach ($this->getDrawerKeys() as $key) {
 			if (!$this->isAlive($key)) {
-				if ($this->log_drawer_errors)
-					error_log("{$key} is dead, {$this} respawning drawer...");
+				$this->logger->log(self::LOGGER_EVENT_REAPED, $this->process_pids[$key]);
 				$this->killDrawer($key);
 				$this->spawnDrawer();
 			}
@@ -326,16 +335,27 @@ class Desk implements \JsonSerializable {
 			return null;
 
 		$buck = $this->inbound_socket->receive($timeout);
-		if ($buck instanceof Buck)
-			return $this->enqueueBuck($buck);
+		$valid = $buck instanceof Buck;
+		if (!$valid) return null;
 
-		return null;
+		$buck->getLogger()->log(Buck::LOGGER_EVENT_RECEIVED, $this->getLoggerId());
+
+		if ($this->buck_received_handler)
+			call_user_func($this->buck_received_handler, $buck, $this);
+
+		return $this->enqueueBuck($buck);
 
 	}
 
 	public function receiveResult($timeout = 0) {
-		if (is_null($result = $this->receiveResultFromStreams($this->stderrs, $timeout)))
-			$result = $this->receiveResultFromStreams($this->stdouts, $timeout);
+
+		$result =
+			$this->receiveResultFromStreams($this->stderrs, $timeout) ||
+			$this->receiveResultFromStreams($this->stdouts, $timeout);
+
+		if ($result)
+			call_user_func($this->result_received_handler, $result, $this);
+
 		return $result;
 	}
 
@@ -353,23 +373,12 @@ class Desk implements \JsonSerializable {
 			if (!$valid) continue;
 			$data = $result->data();
 
-			if ($this->log_drawer_errors) {
-				if ($data) {
-					if (isset($data->error)) {
-						if (is_array($data->error))
-							error_log("{$this} received error with message '{$data->error['message']}' in {$data->error['file']}:{$data->error['line']} from {$key}");
-						else
-							error_log("{$this} received error with message '{$data->error}' from {$key}");
-					}
-					if (isset($data->exception))
-						error_log("{$this} received {$data->exception} from {$key}");
-				} else {
-					error_log("{$this} received empty result data from {$key}");
-				}
+			if ($data && isset($data->buck)) {
+				$buck = $data->buck;
+				$pid = $this->process_pids[$key];
+				$this->untrackBuck($buck);
+				$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_COMPLETE, $pid);
 			}
-
-			if ($data && isset($data->buck))
-				$this->dequeueBuck($data->buck);
 
 			$this->process_ready[$key] = true;
 
@@ -382,31 +391,27 @@ class Desk implements \JsonSerializable {
 	}
 
 	public function rerouteBuck(Buck $buck, $timeout = 0) {
-
-		if ($this->log_client_reroute) {
-			$spec = $this->getClient()->getDeskSpec($buck);
-			error_log("{$this} rerouting {$buck} to Desk<{$spec['host']}:{$spec['port']}>");
-		}
-
+		$this->logger->log(self::LOGGER_EVENT_BUCK_REROUTE, $buck->getLoggerId());
 		$buck->setRoutingDeskId($this->id);
-
-		if (!$this->getClient()->sendBuck($buck, $timeout))
-			return null;
-
-		return $buck;
-
+		return $this->getClient()->sendBuck($buck, $timeout);
 	}
 
 	private function sendBuckToStreams(Buck $buck, array $streams, $timeout = 0) {
 
-		if (!stream_select($i, $streams, $j, $timeout))
-			return null;
+		if (!stream_select($i, $streams, $j, $timeout)) return null;
 
 		foreach ($streams as $key => $stream) {
 			if (!$this->process_ready[$key]) continue;
+			$pid = $this->process_pids[$key];
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_START, $pid);
+			$stream  = $streams[$key];
+			$written = Util::writeObjectToStream($buck, $stream);
+			if (!$written) {
+				$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $pid);
+				continue;
+			}
 			$this->process_ready[$key] = false;
-			$stream = $streams[$key];
-			return Util::writeObjectToStream($buck, $stream);
+			return $this->trackBuck($written, self::STATE_DELEGATED);
 		}
 
 		return null;
@@ -414,11 +419,17 @@ class Desk implements \JsonSerializable {
 	}
 
 	public function start($timeout = 0, $auto_reap_drawers = true) {
+		$this->logger->log(self::LOGGER_EVENT_START);
 		while($this->tick($timeout, $auto_reap_drawers));
 	}
 
 	public function stop() {
-		return $this->continue = false;
+		if ($this->continue) {
+			$this->logger->log(self::LOGGER_EVENT_STOP);
+			$this->continue = false;
+			return true;
+		}
+		return false;
 	}
 
 	public function spawnDrawer() {
@@ -475,56 +486,32 @@ class Desk implements \JsonSerializable {
 
 	public function updateClient(Client $client) {
 
-		if (!$this->getClient()) {
-			$new_client = $client;
-		} else if ($this->getClient()->getSignature() === $client->getSignature()) {
-			if ($this->log_client_updates)
-				error_log("{$this} ignoring client update because signatures match; against {$client}");
-		} else if ($client->getTimestamp() <= $this->getClient()->getTimestamp()) {
-			if ($this->log_client_updates)
-				error_log("{$this} ignoring client update because local client is newer; against {$client}");
-		} else {
-			$new_client = $client;
+		$existing = $this->getClient();
+
+		if ($existing) {
+			if ($existing->getSignature() === $client->getSignature()) {
+				$this->logger->log(self::LOGGER_EVENT_CLIENT_IGNORE, 'IDENTICAL');
+				return null;
+			}
+			if ($client->getTimestamp() <= $existing->getTimestamp()) {
+				$this->logger->log(self::LOGGER_EVENT_CLIENT_IGNORE, 'OUTDATED');
+				return null;
+			}
 		}
 
-		if (!isset($new_client))
-			return null;
+		$this->logger->log(self::LOGGER_EVENT_CLIENT_UPDATE, $client->getLoggerId());
 
-		if ($this->log_client_updates)
-			error_log("{$this} updating client using {$client}");
-
-		return $this->client = $new_client;
+		return $this->client = $client;
 
 	}
 
 	public function tick($timeout = 0, $auto_reap_drawers = true) {
-
 		$this->continue = true;
-
-		// ensure that the children streams are still valid
-		if ($auto_reap_drawers) $this->reapDrawers();
-
-		if (!is_null($received_buck = $this->receiveBuck($timeout))) {
-			if ($this->log_tick_work)
-				error_log("{$this} received {$received_buck}");
-			if ($this->buck_received_handler)
-				call_user_func($this->buck_received_handler, $received_buck, $this);
-		}
-
-		if (!is_null($processed_buck = $this->processBuck($timeout))) {
-			if ($this->log_tick_work)
-				error_log("{$this} processed {$processed_buck}");
-			if ($this->buck_processed_handler)
-				call_user_func($this->buck_processed_handler, $processed_buck, $this);
-		}
-
-		if (!is_null($received_result = $this->receiveResult($timeout))) {
-			if ($this->log_tick_work)
-				error_log("{$this} received {$received_result}");
-			if ($this->result_received_handler)
-				call_user_func($this->result_received_handler, $received_result, $this);
-		}
-
+		if ($auto_reap_drawers)
+			$this->reapDrawers();
+		$this->receiveBuck($timeout);
+		$this->processBuck($timeout);
+		$this->receiveResult($timeout);
 		return $this->continue;
 
 	}

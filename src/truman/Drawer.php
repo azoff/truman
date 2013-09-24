@@ -1,15 +1,22 @@
 <? namespace truman;
 
-class Drawer implements \JsonSerializable {
+use truman\interfaces\LoggerContext;
+
+class Drawer implements \JsonSerializable, LoggerContext {
 
 	const KILLCODE = '__DRAWER_KILL__';
 
-	private $options, $data;
+	const LOGGER_TYPE          = 'DRAWER';
+	const LOGGER_EVENT_INIT    = 'INIT';
+	const LOGGER_EVENT_POLLING = 'POLLING';
+	const LOGGER_EVENT_EXIT    = 'EXIT';
+	const LOGGER_EVENT_ERROR   = 'ERROR';
+	const LOGGER_EVENT_FATAL   = 'FATAL';
+
+	private $options, $data, $logger;
 
 	private static $_DEFAULT_OPTIONS = [
-		'log_errors'         => true,
-		'log_bucks_received' => true,
-		'log_bucks_executed' => true,
+		'logger_options'     => [],
 		'timeout'            => 0,
 		'stream_input'       => STDIN,
 		'stream_output'      => STDOUT,
@@ -24,56 +31,69 @@ class Drawer implements \JsonSerializable {
 
 	public function shutdown() {
 
-		// no jobs killed this script, it exited normally
-		if (!isset($this->data))
-			exit(0);
+		$status_code = 0;
 
 		// something bad happened; let papa know
-		$error = error_get_last();
-		if (isset($error['message']{0}))
-			$this->data['error'] = $error;
-		if ($output = ob_get_clean())
-			$this->data['output'] = $output;
-		$this->data['runtime'] += microtime(1);
+		if (isset($this->data)) {
+			$error = error_get_last();
+			$this->logger->log(self::LOGGER_EVENT_FATAL, $error);
+			if (isset($error['message']{0}))
+				$this->data['error'] = $error['message'];
+			if ($output = ob_get_clean())
+				$this->data['output'] = $output;
+			$this->data['runtime'] += microtime(1);
 
-		$result = new Result(false, (object) $this->data);
-		Util::writeObjectToStream($result,  $this->options['stream_output']);
+			$result = new Result(false, (object) $this->data);
+			$this->result_log($result);
+			$this->result_write($result);
+			$status_code = 1;
+		}
 
-		exit(1);
+		$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
+		exit($status_code);
 
 	}
 
 	public function __construct(array $requirements = [], array $options = []) {
 		$this->options = $options + self::$_DEFAULT_OPTIONS;
+		$this->logger  = new Logger($this, $this->options['logger_options']);
 		foreach ($requirements as $requirement)
 			require_once $requirement;
+		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
 	}
 
 	function __toString() {
-		$pid = getmypid();
-		return "Drawer<{$pid}>";
+		$id = $this->getLoggerId();
+		return "Drawer<{$id}>";
 	}
 
 	public function jsonSerialize() {
 		return $this->__toString();
 	}
 
+	public function getLoggerType() {
+		return self::LOGGER_TYPE;
+	}
+
+	public function getLoggerId() {
+		return getmypid();
+	}
+
+	public function getLogger() {
+		return $this->logger;
+	}
+
+
 	public function poll() {
 		declare(ticks = 1);
+		$this->logger->log(self::LOGGER_EVENT_POLLING);
 		do $status = $this->tick();
 		while($status < 0);
 		return (int) $status;
 	}
 
-	private function log($msg, $log_option = null, $code = -1) {
-		if (is_null($log_option) || $this->options["log_{$log_option}"])
-			error_log("{$this} {$msg}");
-		return $code;
-	}
-
 	public function tick() {
 
-		$output = $this->options['stream_output'];
 		$inputs = [$this->options['stream_input']];
 
 		if (!stream_select($inputs, $i, $j, $this->options['timeout']))
@@ -85,27 +105,38 @@ class Drawer implements \JsonSerializable {
 		if (is_null($buck)) return -1;
 
 		$valid = $buck instanceof Buck;
-		if ($valid) $this->log("received {$buck}", 'bucks_received');
-		else return $this->log('received unrecognized input, ignoring...', 'errors');
-
-		$result = $this->execute($buck);
-		$this->log("executed {$buck}", 'bucks_executed');
-
-		Util::writeObjectToStream($result, $output);
-		$data = $result->data();
-
-		if (isset($data->retval) && $data->retval === self::KILLCODE) {
-			$this->log("received KILL code, exiting...", 'bucks_received');
-			return 0;
+		if (!$valid) {
+			$this->logger->log(self::LOGGER_EVENT_ERROR, $input);
+			return -1;
 		}
 
-		return -1;
+		$result = $this->execute($buck);
 
+		$this->result_write($result);
+		$data = $result->data();
+
+		return isset($data->retval) && $data->retval === self::KILLCODE;
+
+	}
+
+	private function result_write(Result $result) {
+		if (!Util::writeObjectToStream($result, $this->options['stream_output']))
+			$this->logger->log(self::LOGGER_EVENT_ERROR, 'UNABLE TO WRITE TO STDOUT');
+	}
+
+	private function result_log(Result $result) {
+		$data  = $result->data();
+		$buck  = $data->buck;
+		$event = $result->was_successful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_DELEGATE_ERROR;
+		unset($data['buck']);
+		$buck->getLogger()->log($event, $data);
 	}
 
 	public function execute(Buck $buck) {
 
-		$pid = getmypid();
+		$pid = $this->getLoggerId();
+		$buck->getLogger()->log(Buck::LOGGER_EVENT_EXECUTE_START, $pid);
+
 		$context = $buck->getContext();
 		Buck::setThreadContext($pid, $context);
 
@@ -119,11 +150,11 @@ class Drawer implements \JsonSerializable {
 		try {
 			$this->data['retval'] = @$buck->invoke();
 		} catch (Exception $ex) {
-			$this->data['exception'] = $ex;
+			$this->data['exception'] = $ex->getMessage();
 		}
 		$error = error_get_last();
 		if (isset($error['message']{0}))
-			$this->data['error'] = $error;
+			$this->data['error'] = $error['message'];
 		if ($output = ob_get_clean())
 			$this->data['output'] = $output;
 		$this->data['runtime'] += microtime(1);
@@ -139,7 +170,11 @@ class Drawer implements \JsonSerializable {
 
 		unset($this->data);
 
-		return new Result($passed, $data);
+		$result = new Result($passed, $data);
+
+		$this->result_log($result);
+
+		return $result;
 
 	}
 

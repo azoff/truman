@@ -136,7 +136,7 @@ class Socket implements \JsonSerializable {
 	}
 
 	public function __toString() {
-		return "Socket<{$this->host}:{$this->port}>";
+		return "Socket<{$this->getHostAndPort()}>";
 	}
 
 	public function jsonSerialize() {
@@ -196,6 +196,10 @@ class Socket implements \JsonSerializable {
 
 	public function getPort() {
 		return (int) $this->port;
+	}
+
+	public function getHostAndPort() {
+		return "{$this->getHost()}:{$this->getPort()}";
 	}
 
 	public function isClient() {
