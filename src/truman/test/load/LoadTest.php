@@ -21,7 +21,7 @@ class LoadTest {
 	private $options        = [];
 	private $ports          = [];
 	private $port           = 12345;
-	private $start          = 0;
+	private $start_time     = 0;
 	private $work_time      = 0;
 
 	private static $_DEFAULT_OPTIONS = [
@@ -30,7 +30,7 @@ class LoadTest {
 		'drawers'          => 1,
 		'job_duration_max' => 2000000, // max two seconds running jobs
 		'job_delay_max'    => 2000000, // max two seconds between sending jobs
-		'wait_until_jobs'  => 0,
+		'prefill_queue'    => 0,
 	];
 
 	public static function main(array $options) {
@@ -39,36 +39,42 @@ class LoadTest {
 	}
 
 	public function __construct(array $options = []) {
-		$this->options = $options + self::$_DEFAULT_OPTIONS;
+		$this->options    = $options + self::$_DEFAULT_OPTIONS;
+		$this->start_time = microtime(true);
 		while ($this->getDeskCount() < $this->options['desks'])
 			$this->spawnDesk();
+		while ($this->getBucksEnqueuedCount() < $this->options['prefill_queue'])
+			$this->prefillQueue();
 		while ($this->getSpammerCount() < $this->options['spammers'])
 			$this->spawnSpammer();
 	}
 
 	public function start() {
 		declare(ticks = 1);
-		$this->start = microtime(true);
 		do $status = $this->tick();
 		while($status < 0);
 		return (int) $status;
 	}
 
-	private function waitingForJobs(Desk $desk) {
-		$expected = $this->options['wait_until_jobs'];
-		if ($expected <= 0)
-		return false;
-		$desk->receiveBuck();
-		if ($this->getBucksEnqueuedCount() < $expected)
-			return true;
-		$this->options['wait_until_jobs'] = -1;
-		return false;
+	private function prefillQueue() {
+		if (!$this->desks) {
+			throw new Exception('Unable to prefill queue because there are no desks', [
+				'context' => $this,
+				'method'  => __METHOD__
+			]);
+		}
+		$desk_key = array_rand($this->desks, 1);
+		$desk = $this->desks[$desk_key];
+		$max_job_duration = $this->options['job_duration_max'];
+		$buck = Spammer::newSpamBuck($max_job_duration);
+		$desk->enqueueBuck($buck);
+		$this->onBuckEnqueued();
+		$this->render(true);
 	}
 
 	public function tick() {
 		$status = -1;
 		foreach ($this->desks as $desk) {
-			if ($this->waitingForJobs($desk)) continue;
 			if ($desk->tick())                continue;
 			else $status = 0;                 break;
 		}
@@ -131,7 +137,7 @@ class LoadTest {
 	}
 
 	public function getTotalTime() {
-		return microtime(true) - $this->start;
+		return microtime(true) - $this->start_time;
 	}
 
 	public function getWorkTime() {
@@ -139,7 +145,9 @@ class LoadTest {
 	}
 
 	public function getIdleTime() {
-		return abs($this->getTotalTime() - $this->getWorkTime());
+		$total_time = $this->getTotalTime();
+		$work_time  = $this->getWorkTime();
+		return $total_time > $work_time ? ($total_time - $work_time) : $total_time;
 	}
 
 	public function getDeskCount() {
@@ -244,7 +252,7 @@ class LoadTest {
 		if ($type === 'int')    $value = number_format($value);
 		if ($type === 'float')  $value = number_format($value, 1);
 		if ($type === 'memory') $value = number_format($value) . ' Bytes (' . number_format($value/1048576.0, 1) . 'MB)';
-		if ($type === 'time')   $value = number_format($value/3600) . 'h ' .
+        if ($type === 'time')   $value = number_format($value/3600) . 'h ' .
                                          number_format($value/60) . 'm ' .
                                          number_format($value%60.0, 1) . 's';
 		$model[$key] = $value;

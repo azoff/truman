@@ -64,9 +64,13 @@ class Spammer {
 
 	public function spam() {
 		$max_job_duration = $this->options['job_duration_max'];
-		$job_duration = [rand(1, $max_job_duration)];
-		$buck = new Buck('truman\test\load\Spammer::work', $job_duration);
+		$buck = self::newSpamBuck($max_job_duration);
 		return $this->client->sendBuck($buck);
+	}
+
+	public static function newSpamBuck($max_job_duration) {
+		$job_duration = [rand(1, $max_job_duration)];
+		return new Buck('truman\test\load\Spammer::work', $job_duration);
 	}
 
 	public static function work($duration) {

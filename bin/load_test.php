@@ -12,7 +12,7 @@ $options = Util::get_options([
 	'a::' => 'refresh_rate::',
 	'd::' => 'job_delay_max::',
 	'u::' => 'job_duration_max::',
-	'w::' => 'wait_until_jobs::'
+	'p::' => 'prefill_queue::'
 ]);
 
 LoadTest::main($options);
