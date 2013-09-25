@@ -34,11 +34,14 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private $tracking;
 	private $command;
 	private $continue;
-	private $processes;
-	private $process_pids;
 	private $process_ready;
-	private $stdins, $stdouts, $stderrs;
 	private $inbound_socket;
+
+	private $stdins       = [];
+	private $stdouts      = [];
+	private $stderrs      = [];
+	private $processes    = [];
+	private $process_pids = [];
 
 	private $buck_received_handler;
 	private $buck_processed_handler;
@@ -368,6 +371,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	private function receiveResultFromStreams(array $streams, $timeout = 0) {
 
+		if (!$streams)
+			return null;
+
 		if (!stream_select($outputs = $streams, $i, $j, $timeout))
 			return null;
 
@@ -404,6 +410,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 	}
 
 	private function sendBuckToStreams(Buck $buck, array $streams, $timeout = 0) {
+
+		if (!$streams)
+			return null;
 
 		if (!stream_select($i, $streams, $j, $timeout)) return null;
 

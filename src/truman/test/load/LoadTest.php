@@ -94,6 +94,9 @@ class LoadTest {
 		foreach ($model as $name => $value)
 			print "{$name}: {$value}\n";
 		print "\n" . str_repeat('=', 45) . "\n\n";
+
+		gc_collect_cycles();
+
 	}
 
 	public function getSystemLoad() {
