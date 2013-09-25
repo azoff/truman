@@ -3,6 +3,7 @@
 use truman\Desk;
 use truman\Buck;
 use truman\Exception;
+use truman\Result;
 use truman\Util;
 
 class LoadTest {
@@ -15,18 +16,18 @@ class LoadTest {
 	private $spammers = [];
 	private $spammer_streams = [];
 
-	private $model    = [];
-	private $options  = [];
-	private $ports    = [];
-	private $port     = 12345;
-	private $start    = 0;
-	private $runtime  = 0;
+	private $dirty          = true;
+	private $drawer_memory  = [];
+	private $options        = [];
+	private $ports          = [];
+	private $port           = 12345;
+	private $start          = 0;
+	private $work_time      = 0;
 
 	private static $_DEFAULT_OPTIONS = [
 		'desks'            => 1,
 		'spammers'         => 1,
 		'drawers'          => 1,
-		'refresh_rate'     => 42000,   // 24fps
 		'job_duration_max' => 2000000, // max two seconds running jobs
 		'job_delay_max'    => 2000000, // max two seconds between sending jobs
 	];
@@ -55,50 +56,85 @@ class LoadTest {
 	public function tick() {
 		$status = -1;
 		foreach ($this->desks as $desk) {
-			if (!$desk->tick()) {
-				$status = 0;
-				break;
-			}
+			if ($desk->tick()) continue;
+			else $status = 0;  break;
 		}
-		$this->update();
 		$this->render();
-		usleep($this->options['refresh_rate']);
 		return $status;
 	}
 
-	public function update() {
-		$usage = memory_get_peak_usage(true);
-		$bytes = number_format($usage);
-		$mb    = number_format($usage/1048576.0, 1);
-		$this->runtime = number_format(round(microtime(true) - $this->start, 4), 4);
-		$this->model['Desks']    = $this->getDeskCount();
-		$this->model['Drawers']  = 0;
-		foreach ($this->desks as $desk)
-			$this->model['Drawers'] += $desk->getActiveDrawerCount();
-		$this->model['Spammers'] = $this->getSpammerCount();
-		$this->model['Bucks Enqueued']  = $this->getBucksEnqueuedCount();
-		$this->model['Bucks Running']   = $this->getBucksRunningCount();
-		$this->model['Bucks Completed'] = $this->getBucksCompletedCount();
-		$this->model['Memory'] = "{$bytes} bytes ({$mb}MB)";
-		foreach (sys_getloadavg() as $i => $load) {
-			if ($i === 0)      $key = 'Avg. Load Minute';
-			else if ($i === 1) $key = 'Avg. Load 5 Minutes';
-			else               $key = 'Avg. Load 15 Minutes';
-			$this->model[$key] = $load;
-		}
+	public function render() {
+
+		if (!$this->dirty) return;
+		else $this->dirty = false;
+
+		passthru('clear');
+
+		self::format($model, 'desks',     $this->getDeskCount());
+		self::format($model, 'drawers',   $this->getActiveDrawerCount());
+		self::format($model, 'spammers',  $this->getSpammerCount());
+
+		self::format($model, 'enqueued bucks',  $this->getBucksEnqueuedCount());
+		self::format($model, 'running bucks',   $this->getBucksRunningCount());
+		self::format($model, 'completed bucks', $this->getBucksCompletedCount());
+
+		self::format($model, 'work time',  $this->getWorkTime(), 'time');
+		self::format($model, 'idle time',  $this->getIdleTime(), 'time');
+		self::format($model, 'total time', $this->getTotalTime(), 'time');
+
+		self::format($model, 'desk memory',   $this->getDeskMemory(), 'memory');
+		self::format($model, 'drawer memory', $this->getDrawerMemory(), 'memory');
+
+		foreach ($this->getSystemLoad() as $key => $load)
+			self::format($model, $key, $load, null);
+
+		print str_repeat('=', 45) . "\n";
+		print " Load Test\n";
+		print   str_repeat('=', 45) . "\n\n";
+		foreach ($model as $name => $value)
+			print "{$name}: {$value}\n";
+		print "\n" . str_repeat('=', 45) . "\n\n";
 	}
 
-	public function render() {
-		passthru('clear');
-		print "\nLoad Test ({$this->runtime}s)\n";
-		print   "=================================\n";
-		foreach ($this->model as $name => $value)
-			print "{$name}: {$value}\n";
-		print   "=================================\n\n";
+	public function getSystemLoad() {
+		$loads = [];
+		$key[] = '1 minute load';
+		$key[] = '5 minute load';
+		$key[] = '15 minute load';
+		foreach (sys_getloadavg() as $i => $load)
+			$loads[$key[$i]] = $load;
+		return $loads;
+	}
+
+	public function getDeskMemory() {
+		return memory_get_usage(true);
+	}
+
+	public function getDrawerMemory() {
+		return array_sum($this->drawer_memory);
+	}
+
+	public function getTotalTime() {
+		return microtime(true) - $this->start;
+	}
+
+	public function getWorkTime() {
+		return $this->work_time;
+	}
+
+	public function getIdleTime() {
+		return $this->getTotalTime() - $this->getWorkTime();
 	}
 
 	public function getDeskCount() {
 		return count($this->desks);
+	}
+
+	public function getActiveDrawerCount() {
+		$drawers = 0;
+		foreach ($this->desks as $desk)
+			$drawers += $desk->getActiveDrawerCount();
+		return $drawers;
 	}
 
 	public function getSpammerCount() {
@@ -167,18 +203,35 @@ class LoadTest {
 		return $desk;
 	}
 
-	public function onBuckCompleted() {
+	public function onBuckCompleted(Result $result) {
 		$this->bucks_running--;
 		$this->bucks_completed++;
+		$data = $result->data();
+		$this->drawer_memory[$data->pid] = $data->memory;
+		$this->work_time += $data->runtime;
+		$this->dirty = true;
 	}
 
 	public function onBuckEnqueued() {
 		$this->bucks_enqueued++;
+		$this->dirty = true;
 	}
 
 	public function onBuckRunning() {
 		$this->bucks_enqueued--;
 		$this->bucks_running++;
+		$this->dirty = true;
+	}
+
+	private static function format(&$model, $key, $value, $type = 'int', $pad = 16) {
+		$key = str_pad(ucwords($key), $pad, ' ', STR_PAD_LEFT);
+		if ($type === 'int')    $value = number_format($value);
+		if ($type === 'float')  $value = number_format($value, 1);
+		if ($type === 'memory') $value = number_format($value) . ' Bytes (' . number_format($value/1048576.0, 1) . 'MB)';
+		if ($type === 'time')   $value = number_format($value/3600) . 'h ' .
+                                         number_format($value/60) . 'm ' .
+                                         number_format($value%60.0, 1) . 's';
+		$model[$key] = $value;
 	}
 
 }

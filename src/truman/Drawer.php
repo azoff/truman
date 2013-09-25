@@ -40,7 +40,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 				$this->data['error'] = $error;
 			if ($output = ob_get_clean())
 				$this->data['output'] = $output;
-			$this->data['runtime'] += microtime(1);
+			$this->data['runtime'] += microtime(true);
 			$this->data['memory'] = memory_get_usage(true);
 
 			$result = new Result(false, (object) $this->data);
@@ -145,7 +145,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->data            = [];
 		$this->data['pid']     = $pid;
 		$this->data['buck']    = $buck;
-		$this->data['runtime'] = -microtime(1);
+		$this->data['runtime'] = -microtime(true);
 		try {
 			$this->data['retval'] = @$buck->invoke();
 		} catch (Exception $ex) {
@@ -156,7 +156,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			$this->data['error'] = $error;
 		if ($output = ob_get_clean())
 			$this->data['output'] = $output;
-		$this->data['runtime'] += microtime(1);
+		$this->data['runtime'] += microtime(true);
 		$this->data['memory']   = memory_get_usage(true);
 
 		Buck::unsetThreadContext($pid);
