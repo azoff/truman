@@ -64,16 +64,20 @@ class Util {
 		error_log(print_r($obj, true));
 	}
 
-	public static function get_args($argv) {
+	public static function getArgs($argv) {
 		return array_filter(array_slice($argv, 1), function($value){
 			return $value{0} !== '-';
 		});
 	}
 
-	public static function get_options(array $opts) {
+	public static function getOptions(array $opts) {
 		$longopts  = array_values($opts);
 		$shortopts = implode('', array_keys($opts));
 		return getopt($shortopts, $longopts);
+	}
+
+	public static function getMemoryUsage() {
+		return memory_get_usage(true) - TRUMAN_BASE_MEMORY;
 	}
 
 	public static function trace() {

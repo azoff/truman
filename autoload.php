@@ -1,6 +1,7 @@
 <?
 
 define('TRUMAN_HOME', __DIR__);
+define('TRUMAN_BASE_MEMORY', memory_get_usage(true));
 
 spl_autoload_register(function($class) {
 	

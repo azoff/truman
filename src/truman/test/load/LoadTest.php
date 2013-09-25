@@ -16,8 +16,10 @@ class LoadTest {
 	private $spammers = [];
 	private $spammer_streams = [];
 
+	private $drawer_memory      = [];
+	private $drawer_base_memory = [];
+
 	private $dirty          = true;
-	private $drawer_memory  = [];
 	private $options        = [];
 	private $ports          = [];
 	private $port           = 12345;
@@ -40,36 +42,38 @@ class LoadTest {
 
 	public function __construct(array $options = []) {
 		$this->options    = $options + self::$_DEFAULT_OPTIONS;
-		$this->start_time = microtime(true);
 		while ($this->getDeskCount() < $this->options['desks'])
 			$this->spawnDesk();
-		while ($this->getBucksEnqueuedCount() < $this->options['prefill_queue'])
-			$this->prefillQueue();
 		while ($this->getSpammerCount() < $this->options['spammers'])
 			$this->spawnSpammer();
 	}
 
 	public function start() {
 		declare(ticks = 1);
+		$this->start_time = microtime(true);
+		$this->prefillQueue();
 		do $status = $this->tick();
 		while($status < 0);
 		return (int) $status;
 	}
 
 	private function prefillQueue() {
-		if (!$this->desks) {
+
+		if (($expected_prefill = $this->options['prefill_queue']) < 0)
+			return;
+
+		if (!$this->desks)
 			throw new Exception('Unable to prefill queue because there are no desks', [
 				'context' => $this,
 				'method'  => __METHOD__
 			]);
+
+		while ($this->getBucksEnqueuedCount() < $expected_prefill) {
+			foreach ($this->desks as $desk)
+				$desk->receiveBuck();
+			$this->render();
 		}
-		$desk_key = array_rand($this->desks, 1);
-		$desk = $this->desks[$desk_key];
-		$max_job_duration = $this->options['job_duration_max'];
-		$buck = Spammer::newSpamBuck($max_job_duration);
-		$desk->enqueueBuck($buck);
-		$this->onBuckEnqueued();
-		$this->render(true);
+
 	}
 
 	public function tick() {
@@ -96,23 +100,36 @@ class LoadTest {
 		self::format($model, 'enqueued bucks',  $this->getBucksEnqueuedCount());
 		self::format($model, 'running bucks',   $this->getBucksRunningCount());
 		self::format($model, 'completed bucks', $this->getBucksCompletedCount());
+		self::format($model, 'total bucks',     $this->getBucksCount());
 
 		self::format($model, 'work time',  $this->getWorkTime(), 'time');
 		self::format($model, 'idle time',  $this->getIdleTime(), 'time');
 		self::format($model, 'total time', $this->getTotalTime(), 'time');
 
-		self::format($model, 'desk memory',   $this->getDeskMemory(), 'memory');
-		self::format($model, 'drawer memory', $this->getDrawerMemory(), 'memory');
+		self::format($model, 'desk base memory',  $this->getDeskBaseMemory(), 'memory');
+		self::format($model, 'desk alloc memory', $this->getDeskAllocMemory(), 'memory');
+		self::format($model, 'desk total memory', $this->getDeskMemory(), 'memory');
+
+		self::format($model, 'drawer base memory',  $this->getDrawerBaseMemory(), 'memory');
+		self::format($model, 'drawer alloc memory', $this->getDrawerAllocMemory(), 'memory');
+		self::format($model, 'drawer total memory', $this->getDrawerMemory(), 'memory');
+
+		self::format($model, 'system base memory',  $this->getBaseMemory(), 'memory');
+		self::format($model, 'system alloc memory', $this->getAllocMemory(), 'memory');
+		self::format($model, 'system total memory', $this->getMemory(), 'memory');
+
+		self::format($model, 'bucks per second', $this->getBuckThroughput(), 'float');
+		self::format($model, 'bytes per buck', $this->getSizeOfQueuedBuck(), 'float');
 
 		foreach ($this->getSystemLoad() as $key => $load)
 			self::format($model, $key, $load, null);
 
-		print str_repeat('=', 45) . "\n";
+		print str_repeat('=', 50) . "\n";
 		print " Load Test\n";
-		print   str_repeat('=', 45) . "\n\n";
+		print   str_repeat('=', 50) . "\n\n";
 		foreach ($model as $name => $value)
 			print "{$name}: {$value}\n";
-		print "\n" . str_repeat('=', 45) . "\n\n";
+		print "\n" . str_repeat('=', 50) . "\n\n";
 
 		gc_collect_cycles();
 
@@ -128,12 +145,49 @@ class LoadTest {
 		return $loads;
 	}
 
+	public function getBuckThroughput() {
+		return $this->getBucksCount() / $this->getTotalTime();
+	}
+
+	public function getSizeOfQueuedBuck() {
+		$queued = $this->getBucksEnqueuedCount();
+		return $queued > 0 ? $this->getDeskAllocMemory() / $queued : 0;
+	}
+
+	public function getDeskBaseMemory() {
+		return TRUMAN_BASE_MEMORY;
+	}
+
+	public function getDeskAllocMemory() {
+		return Util::getMemoryUsage();
+	}
+
 	public function getDeskMemory() {
-		return memory_get_usage(true);
+		return $this->getDeskBaseMemory() + $this->getDeskAllocMemory();
+	}
+
+	public function getDrawerBaseMemory() {
+		return array_sum($this->drawer_base_memory);
+	}
+
+	public function getDrawerAllocMemory() {
+		return array_sum($this->drawer_memory);
 	}
 
 	public function getDrawerMemory() {
-		return array_sum($this->drawer_memory);
+		return $this->getDrawerBaseMemory() + $this->getDrawerAllocMemory();
+	}
+
+	public function getBaseMemory() {
+		return $this->getDeskBaseMemory() + $this->getDrawerBaseMemory();
+	}
+
+	public function getAllocMemory() {
+		return $this->getDeskAllocMemory() + $this->getDrawerAllocMemory();
+	}
+
+	public function getMemory() {
+		return $this->getBaseMemory() + $this->getAllocMemory();
 	}
 
 	public function getTotalTime() {
@@ -180,6 +234,10 @@ class LoadTest {
 
 	public function getBucksCompletedCount() {
 		return $this->bucks_completed;
+	}
+
+	public function getBucksCount() {
+		return $this->getBucksEnqueuedCount() + $this->getBucksCompletedCount() + $this->getBucksRunningCount();
 	}
 
 	private function getSpammerCommand() {
@@ -232,6 +290,7 @@ class LoadTest {
 		$this->bucks_completed++;
 		$data = $result->data();
 		$this->drawer_memory[$data->pid] = $data->memory;
+		$this->drawer_base_memory[$data->pid] = $data->memory_base;
 		$this->work_time += $data->runtime;
 		$this->dirty = true;
 	}
@@ -247,7 +306,7 @@ class LoadTest {
 		$this->dirty = true;
 	}
 
-	private static function format(&$model, $key, $value, $type = 'int', $pad = 16) {
+	private static function format(&$model, $key, $value, $type = 'int', $pad = 20) {
 		$key = str_pad(ucwords($key), $pad, ' ', STR_PAD_LEFT);
 		if ($type === 'int')    $value = number_format($value);
 		if ($type === 'float')  $value = number_format($value, 1);

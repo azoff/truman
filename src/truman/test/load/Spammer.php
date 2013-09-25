@@ -17,7 +17,7 @@ class Spammer {
 
 	public static function main(array $argv, array $options = null) {
 		$options = $options ?: [];
-		$desk_specs = Util::get_args($argv);
+		$desk_specs = Util::getArgs($argv);
 		try {
 			$spammer = new Spammer($desk_specs, $options);
 			exit($spammer->poll());

@@ -5,7 +5,7 @@
 use truman\Util;
 use truman\test\load\LoadTest;
 
-$options = Util::get_options([
+$options = Util::getOptions([
 	'n::' => 'desks::',
 	'r::' => 'drawers::',
 	's::' => 'spammers::',
