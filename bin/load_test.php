@@ -11,7 +11,8 @@ $options = Util::get_options([
 	's::' => 'spammers::',
 	'a::' => 'refresh_rate::',
 	'd::' => 'job_delay_max::',
-	'u::' => 'job_duration_max::'
+	'u::' => 'job_duration_max::',
+	'w::' => 'wait_until_jobs::'
 ]);
 
 LoadTest::main($options);

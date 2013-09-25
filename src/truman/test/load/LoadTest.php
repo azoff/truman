@@ -30,6 +30,7 @@ class LoadTest {
 		'drawers'          => 1,
 		'job_duration_max' => 2000000, // max two seconds running jobs
 		'job_delay_max'    => 2000000, // max two seconds between sending jobs
+		'wait_until_jobs'  => 0,
 	];
 
 	public static function main(array $options) {
@@ -53,11 +54,23 @@ class LoadTest {
 		return (int) $status;
 	}
 
+	private function waitingForJobs(Desk $desk) {
+		$expected = $this->options['wait_until_jobs'];
+		if ($expected <= 0)
+		return false;
+		$desk->receiveBuck();
+		if ($this->getBucksEnqueuedCount() < $expected)
+			return true;
+		$this->options['wait_until_jobs'] = -1;
+		return false;
+	}
+
 	public function tick() {
 		$status = -1;
 		foreach ($this->desks as $desk) {
-			if ($desk->tick()) continue;
-			else $status = 0;  break;
+			if ($this->waitingForJobs($desk)) continue;
+			if ($desk->tick())                continue;
+			else $status = 0;                 break;
 		}
 		$this->render();
 		return $status;
@@ -126,7 +139,7 @@ class LoadTest {
 	}
 
 	public function getIdleTime() {
-		return $this->getTotalTime() - $this->getWorkTime();
+		return abs($this->getTotalTime() - $this->getWorkTime());
 	}
 
 	public function getDeskCount() {
