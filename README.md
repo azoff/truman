@@ -15,3 +15,4 @@ TODO
 - Document functions
 - Allow clients to start without notifying (dangerous)
 - Autoscaling drawers?
+- Ensure pcntl and sockets are installed on target dist

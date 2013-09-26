@@ -36,6 +36,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private $continue;
 	private $process_ready;
 	private $inbound_socket;
+	private $auto_reap_drawers;
 
 	private $stdins       = [];
 	private $stdouts      = [];
@@ -53,6 +54,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 		'client_signature'                   => '',
 		'include'                            => [],
 		'logger_options'                     => [],
+		'auto_reap_drawers'                  => true,
 		self::OPTION_DRAWER_COUNT            => 3,
 		self::OPTION_BUCK_RECEIVED_HANDLER   => null,
 		self::OPTION_BUCK_PROCESSED_HANDLER  => null,
@@ -111,6 +113,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (!is_array($includes = $options['include']))
 			$includes = [$includes];
 
+		$this->auto_reap_drawers = $options['auto_reap_drawers'];
+
 		$this->command = implode(' ', array_merge(
 			['php bin/drawer.php'],
 			array_filter($includes, 'is_readable')
@@ -127,14 +131,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	}
 
 	public function __destruct() {
-		$this->stop();
-		if (isset($this->inbound_socket)) {
-			$this->inbound_socket->__destruct();
-			unset($this->inbound_socket);
-		}
-		if (count($this->processes))
-			foreach ($this->getDrawerKeys() as $key)
-				$this->killDrawer($key);
+		$this->close();
 	}
 
 	public function __toString() {
@@ -146,6 +143,17 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	public function jsonSerialize() {
 		return $this->__toString();
+	}
+
+	public function close() {
+		$this->stop();
+		if (isset($this->inbound_socket)) {
+			$this->inbound_socket->__destruct();
+			unset($this->inbound_socket);
+		}
+		if (count($this->processes))
+			foreach ($this->getDrawerKeys() as $key)
+				$this->killDrawer($key);
 	}
 
 	public function getLoggerType() {
@@ -219,8 +227,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 		return $this->client;
 	}
 
-	public function isAlive($key) {
-		$status = proc_get_status($this->processes[$key]);
+	public function drawerAlive($key) {
+		$process = $this->processes[$key];
+		if (is_null($process)) return false;
+		$status = proc_get_status($process);
 		return (bool) $status['running'];
 	}
 
@@ -287,6 +297,13 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	}
 
+	public function processBucks($timeout = 0) {
+		$bucks = [];
+		do $buck = $bucks[] = $this->processBuck($timeout);
+		while (!is_null($buck));
+		return $buck;
+	}
+
 	public function processBuck($timeout = 0) {
 
 		$buck  = $this->nextBuck();
@@ -315,23 +332,31 @@ class Desk implements \JsonSerializable, LoggerContext {
 	public function getActiveDrawerCount() {
 		$count = $this->getDrawerCount();
 		foreach ($this->getDrawerKeys() as $key)
-			if (!$this->isAlive($key))
+			if (!$this->drawerAlive($key))
 				$count--;
 		return $count;
 	}
 
 	public function reapDrawers() {
-
-		foreach ($this->getDrawerKeys() as $key) {
-			if (!$this->isAlive($key)) {
-				$this->logger->log(self::LOGGER_EVENT_REAPED, $this->process_pids[$key]);
-				$this->killDrawer($key);
-				$this->spawnDrawer();
-			}
-		}
-
+		$reaped = 0;
+		foreach ($this->getDrawerKeys() as $key)
+			if (!$this->drawerAlive($key))
+				$reaped += $this->reapDrawer($key);
 		return true;
+	}
 
+	public function reapDrawer($key) {
+		$this->logger->log(self::LOGGER_EVENT_REAPED, $this->process_pids[$key]);
+		$this->killDrawer($key);
+		return $this->spawnDrawer() ? 1 : 0;
+	}
+
+	public function checkDrawer($key) {
+		if ($this->drawerAlive($key))
+			return $this->process_ready[$key];
+		if ($this->auto_reap_drawers)
+			$this->reapDrawer($key);
+		return false;
 	}
 
 	public function receiveBuck($timeout = 0) {
@@ -357,32 +382,31 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	}
 
-	public function receiveResult($timeout = 0) {
+	public function receiveResults($timeout = 0) {
 
-		$result =
-			$this->receiveResultFromStreams($this->stderrs, $timeout) ?:
-			$this->receiveResultFromStreams($this->stdouts, $timeout);
+		$error_results  = $this->receiveResultsFromStreams($this->stderrs, $timeout);
+		$output_results = $this->receiveResultsFromStreams($this->stdouts, $timeout);
+		$all_results    = array_merge($error_results, $output_results);
 
-		if ($this->result_received_handler && $result instanceof Result)
-			call_user_func($this->result_received_handler, $result, $this);
+		if ($this->result_received_handler)
+			foreach ($all_results as $result)
+				call_user_func($this->result_received_handler, $result, $this);
 
-		return $result;
+		return $all_results;
+
 	}
 
-	private function receiveResultFromStreams(array $streams, $timeout = 0) {
+	private function receiveResultsFromStreams(array $streams, $timeout = 0) {
 
-		if (!$streams)
-			return null;
+		$results = [];
 
-		if (!stream_select($outputs = $streams, $i, $j, $timeout))
-			return null;
+		if (!$streams || !stream_select($streams, $i, $j, $timeout))
+			return $results;
 
-		foreach ($outputs as $output) {
+		foreach ($streams as $key => $stream) {
 
-			$key    = array_pop(array_keys($streams, $output));
-			$result = Util::readObjectFromStream($output);
+			$result = Util::readObjectFromStream($stream);
 			$valid  = $result instanceof Result;
-
 			if (!$valid) continue;
 			$data = $result->data();
 
@@ -394,12 +418,14 @@ class Desk implements \JsonSerializable, LoggerContext {
 			}
 
 			$this->process_ready[$key] = true;
+			$results[] = $result;
 
-			return $result;
+			// check drawers after read
+			$this->checkDrawer($key);
 
 		}
 
-		return null;
+		return $results;
 
 	}
 
@@ -411,32 +437,36 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	private function sendBuckToStreams(Buck $buck, array $streams, $timeout = 0) {
 
-		if (!$streams)
+		if (!$streams || !stream_select($i, $streams, $j, $timeout))
 			return null;
 
-		if (!stream_select($i, $streams, $j, $timeout)) return null;
-
 		foreach ($streams as $key => $stream) {
-			if (!$this->process_ready[$key]) continue;
+
+			// check drawers before write
+			if (!$this->checkDrawer($key)) continue;
+
 			$pid = $this->process_pids[$key];
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_START, $pid);
 			$stream  = $streams[$key];
 			$written = Util::writeObjectToStream($buck, $stream);
+
 			if (!$written) {
 				$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $pid);
 				continue;
 			}
+
 			$this->process_ready[$key] = false;
 			return $this->trackBuck($written, self::STATE_DELEGATED);
+
 		}
 
 		return null;
 
 	}
 
-	public function start($timeout = 0, $auto_reap_drawers = true) {
+	public function start($timeout = 0) {
 		$this->logger->log(self::LOGGER_EVENT_START);
-		while($this->tick($timeout, $auto_reap_drawers));
+		while($this->tick($timeout));
 	}
 
 	public function stop() {
@@ -498,6 +528,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$this->stdouts[$key]       = $stdout;
 		$this->stderrs[$key]       = $stderr;
 
+		return $key;
+
 	}
 
 	public function updateClient(Client $client) {
@@ -521,13 +553,11 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	}
 
-	public function tick($timeout = 0, $auto_reap_drawers = true) {
+	public function tick($timeout = 0) {
 		$this->continue = true;
-		if ($auto_reap_drawers)
-			$this->reapDrawers();
 		$this->receiveBuck($timeout);
-		$this->processBuck($timeout);
-		$this->receiveResult($timeout);
+		$this->processBucks($timeout);
+		$this->receiveResults($timeout);
 		return $this->continue;
 
 	}

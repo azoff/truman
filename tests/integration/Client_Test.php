@@ -46,7 +46,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 			$desk->getClient()->getDeskCount()
 		);
 
-		$desk->__destruct();
+		$desk->close();
 
 	}
 
@@ -87,7 +87,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 			$expected = count($specs[$i]['channels']);
 			while ($desk->receiveBuck()) $actual++;
 			$this->assertEquals($expected, $actual);
-			$desk->__destruct();
+			$desk->close();
 		}
 
 	}
@@ -135,7 +135,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($buck->getUUID(), $desk->processBuck()->getUUID());
 		$this->assertLessThan(1, $desk->waitingCount());
 
-		$desk->__destruct();
+		$desk->close();
 
 	}
 

@@ -12,7 +12,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_ERROR   = 'ERROR';
 	const LOGGER_EVENT_FATAL   = 'FATAL';
 
-	private $options, $data, $logger;
+	private $data;
+	private $options;
+	private $logger;
 	private $original_memory_limit;
 	private $original_time_limit;
 
@@ -48,8 +50,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			$result = new Result(false, (object) $this->data);
 			$this->result_log($result);
 			$this->result_write($result);
-			$status_code = 1;
+			$status_code = $error['type'];
 		}
+
 
 		$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
 		exit($status_code);
@@ -61,6 +64,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->logger  = new Logger($this, $this->options['logger_options']);
 		$this->original_memory_limit = ini_get('memory_limit');
 		$this->original_time_limit = ini_get('max_execution_time');
+		pcntl_signal(SIGALRM, [$this, 'timeoutError'], true);
 		foreach ($requirements as $requirement)
 			require_once $requirement;
 		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
@@ -69,6 +73,11 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	function __toString() {
 		$id = $this->getLoggerId();
 		return "Drawer<{$id}>";
+	}
+
+	public function timeoutError() {
+		$runtime = $this->data['runtime'] + microtime(true);
+		@trigger_error("Script timed out after {$runtime} seconds", E_USER_WARNING);
 	}
 
 	public function jsonSerialize() {
@@ -130,7 +139,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	private function result_log(Result $result) {
 		$data  = (array) $result->data();
 		$buck  = $data['buck'];
-		$event = $result->was_successful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_DELEGATE_ERROR;
+		$event = $result->was_successful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_EXECUTE_ERROR;
 		unset($data['buck']);
 		$buck->getLogger()->log($event, $data);
 	}
@@ -152,15 +161,17 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->data['runtime']     = -microtime(true);
 		$this->data['memory_base'] = TRUMAN_BASE_MEMORY;
 
-		ini_set('memory_limit',      $buck->getMemoryLimit());
-		ini_set('max_execution_time', $buck->getTimeLimit());
+		ini_set('memory_limit', $buck->getMemoryLimit());
+		pcntl_alarm($buck->getTimeLimit());
+
 		try {
 			$this->data['retval'] = @$buck->invoke();
 		} catch (Exception $ex) {
 			$this->data['exception'] = $ex;
 		}
-		ini_set('memory_limit',       $this->original_memory_limit);
-		ini_set('max_execution_time', $this->original_time_limit);
+
+		pcntl_alarm($this->original_time_limit);
+		ini_set('memory_limit', $this->original_memory_limit);
 
 		$error = error_get_last();
 		if (isset($error['message']{0}))
