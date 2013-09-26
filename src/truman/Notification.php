@@ -14,7 +14,7 @@ class Notification extends Buck {
 		'priority' => self::PRIORITY_URGENT
 	);
 
-	public function __construct($type, $notice, array $options = []) {
+	public function __construct($type, $notice = null, array $options = []) {
 		$this->type   = $type;
 		$this->notice = $notice;
 		$options = $options + self::$_DEFAULT_OPTIONS;
@@ -48,6 +48,10 @@ class Notification extends Buck {
 
 	public function isDrawerSignal() {
 		return $this->getType() === self::TYPE_DRAWER_SIGNAL;
+	}
+
+	public function isDeskRefresh() {
+		return $this->getType() === self::TYPE_DESK_REFRESH;
 	}
 
 	protected function logInit(array $original_opts) {

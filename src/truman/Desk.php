@@ -13,6 +13,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_START         = 'START';
 	const LOGGER_EVENT_STOP          = 'STOP';
 	const LOGGER_EVENT_REAPED        = 'REAPED';
+	const LOGGER_EVENT_REFRESHED     = 'REFRESHED';
 	const LOGGER_EVENT_RECEIVE_ERROR = 'RECEIVE_ERROR';
 	const LOGGER_EVENT_BUCK_REROUTE  = 'BUCK_REROUTE';
 	const LOGGER_EVENT_CLIENT_IGNORE = 'CLIENT_IGNORE';
@@ -113,7 +114,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (!is_array($includes = $options['include']))
 			$includes = [$includes];
 
-		$this->auto_reap_drawers = $options['auto_reap_drawers'];
+		$this->auto_reap_drawers    = $options['auto_reap_drawers'];
 
 		$this->command = implode(' ', array_merge(
 			['php bin/drawer.php'],
@@ -147,7 +148,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	public function checkNotification(Notification $notification) {
 		if ($notification->isClientUpdate())
-			$this->updateClient($notification->getNotice());
+			$this->updateClient($notification);
+		if ($notification->isDeskRefresh())
+			$this->refreshDrawers($notification);
 	}
 
 	public function close() {
@@ -156,9 +159,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 			$this->inbound_socket->__destruct();
 			unset($this->inbound_socket);
 		}
-		if (count($this->processes))
-			foreach ($this->getDrawerKeys() as $key)
-				$this->killDrawer($key);
+		$this->killDrawers();
 	}
 
 	public function getLoggerType() {
@@ -193,6 +194,16 @@ class Desk implements \JsonSerializable, LoggerContext {
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_DEDUPED, $this->getBuckState($buck));
 			return null;
 		}
+	}
+
+	public function refreshDrawers(Notification $notification) {
+		while (in_array(false, $this->process_ready))
+			$this->receiveResults();
+		foreach ($this->getDrawerKeys() as $key) {
+			$this->killDrawer($key);
+			$this->spawnDrawer();
+		}
+		$this->getLogger()->log(self::LOGGER_EVENT_REFRESHED, $notification->getUUID());
 	}
 
 	private function dequeueBuck() {
@@ -237,6 +248,11 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (is_null($process)) return false;
 		$status = proc_get_status($process);
 		return (bool) $status['running'];
+	}
+
+	public function killDrawers() {
+		foreach ($this->getDrawerKeys() as $key)
+			$this->killDrawer($key);
 	}
 
 	public function killDrawer($key) {
@@ -447,7 +463,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 		foreach ($streams as $key => $stream) {
 
-			// check drawers before write
+			// ensure that the drawer is active
 			if (!$this->checkDrawer($key)) continue;
 
 			$pid = $this->process_pids[$key];
@@ -537,10 +553,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	}
 
-	public function updateClient($client_signature) {
+	public function updateClient(Notification $notification) {
 
 		$existing = $this->getClient();
-		$client = Client::fromSignature($client_signature);
+		$client = Client::fromSignature($notification->getNotice());
 
 		if ($existing) {
 			if ($existing->getSignature() === $client->getSignature()) {

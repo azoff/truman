@@ -5,8 +5,7 @@ A PHP Framework to defer method calls
 
 TODO
 ----
-- Create special bucks
-  - Kill, and Reload
+- Fix the reload buck test
 - Create an example client/server
 - Add wrapper (convenience) class
 - Add Buck::sendToSocket test
