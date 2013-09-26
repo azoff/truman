@@ -13,6 +13,8 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_FATAL   = 'FATAL';
 
 	private $options, $data, $logger;
+	private $original_memory_limit;
+	private $original_time_limit;
 
 	private static $_DEFAULT_OPTIONS = [
 		'logger_options'     => [],
@@ -57,6 +59,8 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	public function __construct(array $requirements = [], array $options = []) {
 		$this->options = $options + self::$_DEFAULT_OPTIONS;
 		$this->logger  = new Logger($this, $this->options['logger_options']);
+		$this->original_memory_limit = ini_get('memory_limit');
+		$this->original_time_limit = ini_get('max_execution_time');
 		foreach ($requirements as $requirement)
 			require_once $requirement;
 		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
@@ -147,11 +151,17 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->data['buck']        = $buck;
 		$this->data['runtime']     = -microtime(true);
 		$this->data['memory_base'] = TRUMAN_BASE_MEMORY;
+
+		ini_set('memory_limit',      $buck->getMemoryLimit());
+		ini_set('max_execution_time', $buck->getTimeLimit());
 		try {
 			$this->data['retval'] = @$buck->invoke();
 		} catch (Exception $ex) {
 			$this->data['exception'] = $ex;
 		}
+		ini_set('memory_limit',       $this->original_memory_limit);
+		ini_set('max_execution_time', $this->original_time_limit);
+
 		$error = error_get_last();
 		if (isset($error['message']{0}))
 			$this->data['error'] = $error;
@@ -170,6 +180,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			(bool) $data->retval     );
 
 		unset($this->data);
+		gc_collect_cycles();
 
 		$result = new Result($passed, $data);
 

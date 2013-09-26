@@ -32,6 +32,8 @@ class Buck implements \JsonSerializable, LoggerContext {
 	private $uuid;
 	private $logger;
 	private $priority;
+	private $time_limit;
+	private $memory_limit;
 	private $callable;
 	private $channel;
 	private $context;
@@ -47,10 +49,13 @@ class Buck implements \JsonSerializable, LoggerContext {
 		'client_signature' => '',
 		'logger_options'   => [],
 		'context'          => null,
+		'memory_limit'     => 134217728, // 128MB
+		'time_limit'       => 60,
 	);
 
 	public function __construct($callable = self::CALLABLE_NOOP, array $args = [], array $options = []) {
 
+		$original_opts = $options;
 		$options += self::$_DEFAULT_OPTIONS;
 
 		if (!is_callable($callable, true, $callable_name))
@@ -68,6 +73,9 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 		$this->client_signature = $options['client_signature'];
 		$this->channel = $options['channel'];
+
+		$this->time_limit   = $options['time_limit'];
+		$this->memory_limit = $options['memory_limit'];
 
 		// start with user-supplied context or the thread's context; use the seed if we can't find one.
 		if (is_null($context = $options['context']) && is_null($context = self::getThreadContext(getmypid())))
@@ -90,8 +98,7 @@ class Buck implements \JsonSerializable, LoggerContext {
 		$this->logger->log(self::LOGGER_EVENT_INIT, [
 			'callable' => $this->callable,
 			'args'     => $this->args,
-			'priority' => $this->priority,
-			'channel'  => $this->channel
+			'options'  => $original_opts
 		]);
 
 	}
@@ -132,6 +139,14 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 	public function getContext() {
 		return $this->context;
+	}
+
+	public function getMemoryLimit() {
+		return $this->memory_limit;
+	}
+
+	public function getTimeLimit() {
+		return $this->time_limit;
 	}
 
 	public function getClient() {

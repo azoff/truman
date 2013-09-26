@@ -75,6 +75,12 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(2, $data->error['type']);
 	}
 
+	public function testMemoryLimit() {
+		$buck = new Buck('str_repeat', ['$', 1000000], ['memory_limit' => 2048]);
+		$data = $this->resultAttributeTest($buck, 'error');
+		$this->assertEquals(1, $data->error['type']);
+	}
+
 	public function testOutput() {
 		$buck = new Buck('passthru', ['hostname']);
 		$data = $this->resultAttributeTest($buck, 'output');

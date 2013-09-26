@@ -5,10 +5,9 @@ A PHP Framework to defer method calls
 
 TODO
 ----
+- Fix timeout limits on buck execution
 - Create special bucks
   - Noop, Notification, Kill, and Reload
-- Allow bucks to set timeout
-- Allow desks to set drawer memory limits
 - Create an example client/server
 - Add wrapper (convenience) class
 - Add Buck::sendToSocket test

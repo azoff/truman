@@ -106,17 +106,17 @@ class LoadTest {
 		self::format($model, 'idle time',  $this->getIdleTime(), 'time');
 		self::format($model, 'total time', $this->getTotalTime(), 'time');
 
-		self::format($model, 'desk base memory',  $this->getDeskBaseMemory(), 'memory');
-		self::format($model, 'desk alloc memory', $this->getDeskAllocMemory(), 'memory');
-		self::format($model, 'desk total memory', $this->getDeskMemory(), 'memory');
+		self::format($model, 'base desk memory',  $this->getDeskBaseMemory(), 'memory');
+		self::format($model, 'alloc desk memory', $this->getDeskAllocMemory(), 'memory');
+		self::format($model, 'total desk memory', $this->getDeskMemory(), 'memory');
 
-		self::format($model, 'drawer base memory',  $this->getDrawerBaseMemory(), 'memory');
-		self::format($model, 'drawer alloc memory', $this->getDrawerAllocMemory(), 'memory');
-		self::format($model, 'drawer total memory', $this->getDrawerMemory(), 'memory');
+		self::format($model, 'base drawer memory',  $this->getDrawerBaseMemory(), 'memory');
+		self::format($model, 'alloc drawer memory', $this->getDrawerAllocMemory(), 'memory');
+		self::format($model, 'total drawer memory', $this->getDrawerMemory(), 'memory');
 
-		self::format($model, 'system base memory',  $this->getBaseMemory(), 'memory');
-		self::format($model, 'system alloc memory', $this->getAllocMemory(), 'memory');
-		self::format($model, 'system total memory', $this->getMemory(), 'memory');
+		self::format($model, 'base system memory',  $this->getBaseMemory(), 'memory');
+		self::format($model, 'alloc system memory', $this->getAllocMemory(), 'memory');
+		self::format($model, 'total system memory', $this->getMemory(), 'memory');
 
 		self::format($model, 'bucks per second', $this->getBuckThroughput(), 'float');
 		self::format($model, 'bytes per buck', $this->getSizeOfQueuedBuck(), 'float');
