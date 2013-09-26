@@ -4,8 +4,6 @@ use truman\interfaces\LoggerContext;
 
 class Drawer implements \JsonSerializable, LoggerContext {
 
-	const KILLCODE = '__DRAWER_KILL__';
-
 	const LOGGER_TYPE          = 'DRAWER';
 	const LOGGER_EVENT_INIT    = 'INIT';
 	const LOGGER_EVENT_EXIT    = 'EXIT';
@@ -122,12 +120,13 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			return -1;
 		}
 
-		$result = $this->execute($buck);
+		$this->result_write($this->execute($buck));
 
-		$this->result_write($result);
-		$data = $result->data();
+		if ($buck instanceof Notification)
+			if ($buck->isDrawerSignal())
+				return (int) $buck->getNotice();
 
-		return isset($data->retval) && $data->retval === self::KILLCODE ? 0 : -1;
+		return -1;
 
 	}
 

@@ -64,7 +64,7 @@ class Client implements \JsonSerializable, LoggerContext {
 
 	function __destruct() {
 		foreach ($this->sockets as &$socket) {
-			$socket->__destruct();
+			$socket->close();
 			unset($socket);
 		}
 		$this->sockets = [];
@@ -151,15 +151,11 @@ class Client implements \JsonSerializable, LoggerContext {
 		return $this->timestamp;
 	}
 
-
 	public function notifyDesks($timeout = 0) {
 		if ($timeout < 0) return;
 		if (isset($this->notified) && !$this->notified) {
 			$signature    = $this->getSignature();
-			$notification = new Buck(Buck::CALLABLE_NOOP, [$signature], array(
-				'client_signature' => $signature,
-				'priority'         => Buck::PRIORITY_URGENT
-			));
+			$notification = new Notification(Notification::TYPE_CLIENT_UPDATE, $signature);
 			$this->logger->log(self::LOGGER_EVENT_NOTIFY_START, $signature);
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = $this->createOrGetSocket($target, $desk_spec);

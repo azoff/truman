@@ -145,6 +145,11 @@ class Desk implements \JsonSerializable, LoggerContext {
 		return $this->__toString();
 	}
 
+	public function checkNotification(Notification $notification) {
+		if ($notification->isClientUpdate())
+			$this->updateClient($notification->getNotice());
+	}
+
 	public function close() {
 		$this->stop();
 		if (isset($this->inbound_socket)) {
@@ -310,9 +315,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$valid = $buck instanceof Buck;
 		if (!$valid) return null;
 
-		// update client signature, if one exists
-		if ($buck->hasClientSignature())
-			$this->updateClient($buck->getClient());
+		// check to see if this is a client signature
+		if ($buck instanceof Notification)
+			$this->checkNotification($buck);
 
 		// check ownership, try to reroute, reenqueue if reroute failed
 		if (!$this->ownsBuck($buck))
@@ -532,9 +537,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	}
 
-	public function updateClient(Client $client) {
+	public function updateClient($client_signature) {
 
 		$existing = $this->getClient();
+		$client = Client::fromSignature($client_signature);
 
 		if ($existing) {
 			if ($existing->getSignature() === $client->getSignature()) {

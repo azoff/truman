@@ -4,7 +4,7 @@ use truman\interfaces\LoggerContext;
 
 class Buck implements \JsonSerializable, LoggerContext {
 
-	const CALLABLE_NOOP   = '__NOOP__';
+	const CALLABLE_NOOP         = '__NOOP__';
 
 	const CHANNEL_DEFAULT = 'default';
 
@@ -30,7 +30,7 @@ class Buck implements \JsonSerializable, LoggerContext {
 	const PRIORITY_URGENT  = PHP_INT_MAX;
 
 	private $uuid;
-	private $logger;
+	protected $logger;
 	private $priority;
 	private $time_limit;
 	private $memory_limit;
@@ -38,7 +38,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 	private $channel;
 	private $context;
 	private $routing_desk_id;
-	private $client_signature;
 	private $kwargs;
 	private $args;
 
@@ -46,7 +45,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 		'priority'         => self::PRIORITY_MEDIUM,
 		'channel'          => self::CHANNEL_DEFAULT,
 		'allow_closures'   => false,
-		'client_signature' => '',
 		'logger_options'   => [],
 		'context'          => null,
 		'memory_limit'     => 134217728, // 128MB
@@ -71,7 +69,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 		$this->priority = (int) $options['priority'];
 		$this->uuid     = $this->calculateUUID();
 
-		$this->client_signature = $options['client_signature'];
 		$this->channel = $options['channel'];
 
 		$this->time_limit   = $options['time_limit'];
@@ -95,11 +92,7 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 		$this->logger = new Logger($this, $options['logger_options']);
 
-		$this->logger->log(self::LOGGER_EVENT_INIT, [
-			'callable' => $this->callable,
-			'args'     => $this->args,
-			'options'  => $original_opts
-		]);
+		$this->logInit($original_opts);
 
 	}
 
@@ -122,6 +115,14 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 	public function jsonSerialize() {
 		return $this->__toString();
+	}
+
+	protected function logInit(array $original_opts) {
+		$this->logger->log(self::LOGGER_EVENT_INIT, [
+			'callable' => $this->callable,
+			'args'     => $this->args,
+			'options'  => $original_opts
+		]);
 	}
 
 	public function calculateSeed() {
@@ -149,16 +150,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 		return $this->time_limit;
 	}
 
-	public function getClient() {
-		if (strlen($sig = $this->getClientSignature()))
-			return Client::fromSignature($sig);
-		return null;
-	}
-
-	public function getClientSignature() {
-		return $this->client_signature;
-	}
-
 	public function getRoutingDeskId() {
 		return $this->routing_desk_id;
 	}
@@ -169,10 +160,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 	public function getUUID() {
 		return $this->uuid;
-	}
-
-	public function hasClientSignature() {
-		return strlen($this->getClientSignature()) > 0;
 	}
 
 	public function isNoop() {

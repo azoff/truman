@@ -3,6 +3,7 @@
 use truman\Buck;
 use truman\Desk;
 use truman\Drawer;
+use truman\Notification;
 use truman\Socket;
 use truman\Client;
 use truman\Util;
@@ -121,9 +122,8 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testCleanReap() {
 
-		$includes[] = Util::tempPhpFile('function cleanKill(){ return Drawer::KILLCODE; }');
 
-		$includes = ['include' => $includes, 'auto_reap_drawers' => false];
+		$includes = ['auto_reap_drawers' => false];
 		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
@@ -132,14 +132,13 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 
 		$this->assertEquals($expected, $desk->getActiveDrawerCount());
 
-		$desk->enqueueBuck(new Buck('cleanKill'));
+		$killer = new Notification(Notification::TYPE_DRAWER_SIGNAL, 0);
+		$desk->enqueueBuck($killer);
 		$desk->start(0);
 		usleep(50000); // give it some time to die...
 
 		$this->assertNotEquals($expected, $desk->getActiveDrawerCount());
-
 		$desk->reapDrawers();
-
 		$this->assertEquals($expected, $desk->getActiveDrawerCount());
 
 		$desk->close();
@@ -164,10 +163,10 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		usleep(50000); // give it some time to die...
 
 		$this->assertNotEquals($expected, $desk->getActiveDrawerCount());
-
 		$desk->reapDrawers();
-
 		$this->assertEquals($expected, $desk->getActiveDrawerCount());
+
+		$desk->close();
 
 	}
 

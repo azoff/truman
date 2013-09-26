@@ -126,13 +126,7 @@ class Socket implements \JsonSerializable {
 	}
 
 	public function __destruct() {
-		if (is_resource($this->socket)) {
-			\socket_set_block($this->socket);
-			\socket_set_option($this->socket, SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 1]);
-			\socket_close($this->socket);
-		}
-		foreach ($this->connections as $connection)
-			$this->closeConnection($connection);
+		$this->close();
 	}
 
 	public function __toString() {
@@ -141,6 +135,16 @@ class Socket implements \JsonSerializable {
 
 	public function jsonSerialize() {
 		return $this->__toString();
+	}
+
+	public function close() {
+		if (is_resource($this->socket)) {
+			\socket_set_block($this->socket);
+			\socket_set_option($this->socket, SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 1]);
+			\socket_close($this->socket);
+		}
+		foreach ($this->connections as $connection)
+			$this->closeConnection($connection);
 	}
 
 	public function acceptConnection($timeout = 0) {
