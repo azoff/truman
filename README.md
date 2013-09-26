@@ -6,6 +6,7 @@ A PHP Framework to defer method calls
 TODO
 ----
 - Fix the reload buck test
+- Add tests for the Notification class
 - Create an example client/server
 - Add wrapper (convenience) class
 - Add Buck::sendToSocket test
