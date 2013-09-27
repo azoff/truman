@@ -79,35 +79,45 @@ truman\Truman::enqueue('sleep', [1]);
 
 __/tmp/truman.log__
 ```sh
-# TIMESTAMP       | ACTOR  | ID OR SOCKET                     | EVENT             | DETAILS
+# TIMESTAMP       | ACTOR  | ID, PID, OR SOCKET               | EVENT             | DETAILS
   1380319965.4672 | DESK   | 0.0.0.0:12345                    | INIT              | [9557,9558,9559]
+# Desk starts, listens on port 12345, and spawns three drawers...
   1380319965.4673 | DESK   | 0.0.0.0:12345                    | START             |
   1380319965.5196 | DRAWER | 9559                             | INIT              |
   1380319965.5234 | DRAWER | 9557                             | INIT              |
   1380319965.5261 | DRAWER | 9558                             | INIT              |
+# Buck is created in client.php...
   1380319968.8462 | BUCK   | 0769b54e1144b8c807c02a51645badca | INIT              | {"callable":"sleep","args":[1],"options":[]}
+# Client starts, creates a notification to inform desks about network topography...
   1380319968.8485 | CLIENT | bac1f5c9c06f70f46ea7542fb95290d2 | INIT              | {"desks":["127.0.0.1:12345"],"timestamp":"1380319968.8485"}
   1380319968.8557 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | INIT              | {"type":0,"notice":"YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtzOjk6IjEyNy4wLjAuMSI7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380319968.8485","options":{"priority":9223372036854775807}}
   1380319968.8558 | CLIENT | bac1f5c9c06f70f46ea7542fb95290d2 | NOTIFY_START      | "YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtzOjk6IjEyNy4wLjAuMSI7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380319968.8485"
   1380319968.9280 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | SEND_START        | "127.0.0.1:12345"
   1380319968.9282 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | SEND_COMPLETE     | "127.0.0.1:12345"
   1380319968.9283 | CLIENT | bac1f5c9c06f70f46ea7542fb95290d2 | NOTIFY_COMPLETE   |
+# Client sends the Buck to the drawer
   1380319968.9283 | BUCK   | 0769b54e1144b8c807c02a51645badca | SEND_START        | "127.0.0.1:12345"
   1380319968.9284 | BUCK   | 0769b54e1144b8c807c02a51645badca | SEND_COMPLETE     | "127.0.0.1:12345"
+# Notification is received by the Desk and delegated to Drawer PID 9557
   1380319968.9568 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | RECEIVED          | "0.0.0.0:12345"
   1380319968.9569 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | ENQUEUED          | 9223372036854775807
   1380319968.9796 | CLIENT | bac1f5c9c06f70f46ea7542fb95290d2 | INIT              | {"desks":["127.0.0.1:12345"],"timestamp":"1380319968.8485"}
   1380319968.9797 | DESK   | 0.0.0.0:12345                    | CLIENT_UPDATE     | "bac1f5c9c06f70f46ea7542fb95290d2"
   1380319968.9800 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | DELEGATE_START    | 9557
   1380319968.9801 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | DEQUEUED          |
+# Buck is received by Desk and delegated to Drawer PID 9558
   1380319968.9805 | BUCK   | 0769b54e1144b8c807c02a51645badca | RECEIVED          | "0.0.0.0:12345"
   1380319968.9805 | BUCK   | 0769b54e1144b8c807c02a51645badca | ENQUEUED          | 2048
   1380319968.9806 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_START    | 9558
   1380319968.9807 | BUCK   | 0769b54e1144b8c807c02a51645badca | DEQUEUED          |
+# Drawer starts work on Buck
   1380319968.9910 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_START     | 9558
+# Drawer starts work on Notification
   1380319968.9928 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | EXECUTE_START     | 9557
+# Drawer finishes work on Notification and returns result to Desk
   1380319968.9940 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | EXECUTE_COMPLETE  | {"pid":9557,"runtime":4.2915344238281e-5,"memory_base":262144,"retval":"YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtzOjk6IjEyNy4wLjAuMSI7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380319968.8485","memory":262144}
   1380319969.0005 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | DELEGATE_COMPLETE | 9557
+# Drawer finishes work on Buck and returns result to Desk
   1380319969.9936 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_COMPLETE  | {"pid":9558,"runtime":1.0010588169098,"memory_base":262144,"retval":0,"memory":262144}
   1380319970.0113 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_COMPLETE | 9558
 ```
@@ -131,11 +141,12 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
+- Add context to buck INIT log (or just use final options)
+  - Add a Notification that allows Desks to ignore/unignore bucks by context
+  - Update log in README
 - Truman tests
 - What happens when a socket fails?
 - Document functions
-- Add context to buck INIT log (or just use final options)
-  - Add a Notification that allows Desks to ignore/unignore bucks by context
 - Allow clients to start without notifying (dangerous)
 - Autoscaling drawers?
 - Ensure pcntl and sockets are installed on target dist
@@ -148,7 +159,7 @@ TODO
 [6]:http://en.wiktionary.org/wiki/the_buck_stops_here
 [7]:http://en.wikipedia.org/wiki/Buck_passing
 [8]:http://php.net/manual/en/book.sockets.php
-[9]:TODO
-[10]:TODO
-[11]:/azoff/truman/issues/new
-[12]:/azoff/truman/fork
+[9]:/src/truman/Truman.php
+[10]:/example
+[11]:issues
+[12]:fork
