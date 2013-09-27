@@ -62,7 +62,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 		self::OPTION_RESULT_RECEIVED_HANDLER => null,
 	];
 
-	public function __construct($inbound_host_spec = null, array $options = []) {
+	public function __construct($inbound_socket_spec = null, array $options = []) {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
@@ -70,8 +70,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$this->tracking = [];
 		$this->waiting  = new \SplPriorityQueue();
 
-		if (!is_null($inbound_host_spec)) {
-			$this->inbound_socket = new Socket($inbound_host_spec);
+		if (!is_null($inbound_socket_spec)) {
+			$this->inbound_socket = new Socket($inbound_socket_spec);
 			if ($this->inbound_socket->isClient())
 				throw new Exception('Inbound socket may not run in client mode', [
 					'context' => $this,

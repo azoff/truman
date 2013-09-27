@@ -183,11 +183,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		Buck::unsetThreadContext($pid);
 
 		$data   = (object) $this->data;
-		$passed =
-			!isset($data->exception) &&
-			!isset($data->error)     && (
-			!isset($data->retval)    ||
-			(bool) $data->retval     );
+		$passed = !isset($data->exception) && !isset($data->error);
 
 		unset($this->data);
 		gc_collect_cycles();

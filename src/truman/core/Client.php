@@ -179,7 +179,7 @@ class Client implements \JsonSerializable, LoggerContext {
 		$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_START, $url);
 		if ($socket->send($buck, null, $timeout)) {
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_COMPLETE, $url);
-			return $this;
+			return $buck;
 		} else {
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_SEND_ERROR, $url);
 			return null;
