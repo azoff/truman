@@ -73,7 +73,7 @@ __client.php__
 ```php
 require_once '/path/to/TRUMAN_HOME/autoload.php';
 
-// enqueue a job to sleep for 1 second
+// calls sleep(1) in some other PHP process
 truman\Truman::enqueue('sleep', [1]);
 ```
 

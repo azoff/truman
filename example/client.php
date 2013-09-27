@@ -1,5 +1,5 @@
 #!/usr/bin/env php
 <? require_once dirname(__DIR__).'/autoload.php';
 
-// enqueue a job to sleep for 1 second
+// calls sleep(1) in some other PHP process
 truman\Truman::enqueue('sleep', [1]);
