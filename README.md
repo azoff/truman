@@ -60,7 +60,7 @@ Distributed Deduplication
 -------------------------
 Deduplication is one of the core tenets guiding the design of Truman's network topography. Any client should be able
 to add a Buck to the distributed queue with the guarantee that it will not be executed in parallel somewhere else in
-the network. By enforcing this guarantee, Buck methods can be written in a way that is thread-safe, and unlikely to
+the network. By enforcing this guarantee, a Buck method can be written in a way that is thread-safe, and unlikely to
 conflict with similar jobs. To accomplish distributed deduplication, Truman relies on a couple preconditions:
 
 - All Desks have a priority queue
