@@ -23,9 +23,10 @@ class Truman {
 		return self::getClient()->sendBuck($buck);
 	}
 
-	public static function listen($inbound_socket_spec = self::DEFAULT_SPEC, array $options = []) {
+	public static function listen($inbound_socket_spec = self::DEFAULT_SPEC, array $options = [], $auto_start = true) {
 		$desk = new Desk($inbound_socket_spec, $options);
-		$desk->start();
+		if ($auto_start) $desk->start();
+		return $desk;
 	}
 
 }

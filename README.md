@@ -136,7 +136,8 @@ Documentation
 Truman is obviously much more configurable than the example and convenience class might lead you to believe. While
 documentation does not currently exist in web form, all classes are fully documented using standard PHPDoc notation. If
 you want utilize the Framework to a degree beyond the default case, I highly recommend starting with the [convenience
-class][9] and working your way down into the Framework internals.
+class][9] and working your way down into the framework internals. The [tests][13] are also a great reference for
+integration between classes.
 
 License
 -------
@@ -150,14 +151,10 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
-- Add context to buck INIT log (or just use final options)
-  - Update notification log as well
-  - Update log in README
-- Add a Notification that allows Desks to ignore/unignore bucks by context
 - Truman tests
-- What happens when a socket fails?
+- Add a Notification that allows Desks to ignore/unignore bucks by context
 - Document functions
-- Allow clients to start without notifying (dangerous)
+- What happens when a socket fails?
 - Autoscaling drawers?
 - Ensure pcntl and sockets are installed on target dist
 
@@ -173,3 +170,4 @@ TODO
 [10]:/example
 [11]:https://github.com/azoff/truman/issues
 [12]:https://github.com/azoff/truman/fork
+[13]:/tests

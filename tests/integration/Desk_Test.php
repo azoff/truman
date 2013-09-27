@@ -33,7 +33,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$second = $desk->enqueueBuck(new Buck('usleep', [100]));
 		$this->assertNotNull($first);
 		$this->assertNull($second);
-		$this->assertEquals(1, $desk->waitingCount());
+		$this->assertEquals(1, $desk->getQueueSize());
 		$desk->close();
 	}
 

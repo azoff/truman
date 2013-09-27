@@ -104,7 +104,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 		// the desk should receive a client notification and the job we made
 		while ($desk->receiveBuck());
-		$this->assertEquals(2, $desk->waitingCount());
+		$this->assertEquals(2, $desk->getQueueSize());
 
 		// now, have the desk process the client notification
 		// so that it knows about the network topography
@@ -131,9 +131,9 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 		// now receive and process the buck over the localhost interface
 		while ($desk->receiveBuck());
-		$this->assertGreaterThan(0, $desk->waitingCount());
+		$this->assertGreaterThan(0, $desk->getQueueSize());
 		$this->assertEquals($buck->getUUID(), $desk->processBuck()->getUUID());
-		$this->assertLessThan(1, $desk->waitingCount());
+		$this->assertLessThan(1, $desk->getQueueSize());
 
 		$desk->close();
 

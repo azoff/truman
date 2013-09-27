@@ -176,6 +176,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 		return $this->logger;
 	}
 
+	public function getQueueSize() {
+		return $this->waiting->count();
+	}
+
 	public function getDrawerCount() {
 		return count($this->processes);
 	}
@@ -582,10 +586,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$this->receiveResults($timeout);
 		return $this->continue;
 
-	}
-
-	public function waitingCount() {
-		return $this->waiting->count();
 	}
 
 	public static function startNew($inbound_host_spec = null, array $options = []) {
