@@ -151,7 +151,6 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
-- Truman tests
 - Add a Notification that allows Desks to ignore/unignore bucks by context
 - Document functions
 - What happens when a socket fails?
