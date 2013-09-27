@@ -53,7 +53,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 	public function __construct($callable = self::CALLABLE_NOOP, array $args = [], array $options = []) {
 
-		$original_opts = $options;
 		$options += self::$_DEFAULT_OPTIONS;
 
 		if (!is_callable($callable, true, $callable_name))
@@ -92,7 +91,7 @@ class Buck implements \JsonSerializable, LoggerContext {
 
 		$this->logger = new Logger($this, $options['logger_options']);
 
-		$this->logInit($original_opts);
+		$this->logInit($options);
 
 	}
 
@@ -117,12 +116,8 @@ class Buck implements \JsonSerializable, LoggerContext {
 		return $this->__toString();
 	}
 
-	protected function logInit(array $original_opts) {
-		$this->logger->log(self::LOGGER_EVENT_INIT, [
-			'callable' => $this->callable,
-			'args'     => $this->args,
-			'options'  => $original_opts
-		]);
+	protected function logInit(array $options) {
+		$this->logger->log(self::LOGGER_EVENT_INIT, $options);
 	}
 
 	public function calculateSeed() {

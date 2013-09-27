@@ -38,6 +38,14 @@ class Notification extends Buck {
 		return $this->type;
 	}
 
+	public function getTypeName() {
+		switch($this->getType()) {
+			case self::TYPE_CLIENT_UPDATE: return 'CLIENT_UPDATE';
+			case self::TYPE_DESK_REFRESH:  return 'DESK_REFRESH';
+			case self::TYPE_DRAWER_SIGNAL: return 'DRAWER_SIGNAL';
+		}
+	}
+
 	public function getNotice() {
 		return $this->notice;
 	}
@@ -54,11 +62,11 @@ class Notification extends Buck {
 		return $this->getType() === self::TYPE_DESK_REFRESH;
 	}
 
-	protected function logInit(array $original_opts) {
+	protected function logInit(array $options) {
 		$this->logger->log(self::LOGGER_EVENT_INIT, [
-			'type'    => $this->type,
-			'notice'  => $this->notice,
-			'options' => $original_opts
+			'type'    => $this->getTypeName(),
+			'notice'  => $this->getNotice(),
+			'options' => $options
 		]);
 	}
 
