@@ -1,8 +1,8 @@
 <? namespace truman\test\integration;
 
-use truman\Desk;
-use truman\Buck;
-use truman\Result;
+use truman\core\Desk;
+use truman\core\Buck;
+use truman\core\Result;
 
 class DeskCallbackAccumulator {
 

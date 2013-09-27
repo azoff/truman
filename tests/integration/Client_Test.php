@@ -1,8 +1,8 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Client;
-use truman\Buck;
-use truman\Desk;
+use truman\core\Client;
+use truman\core\Buck;
+use truman\core\Desk;
 use truman\test\integration\DeskCallbackAccumulator;
 
 class Client_Test extends PHPUnit_Framework_TestCase {

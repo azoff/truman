@@ -2,4 +2,4 @@
 
 <? require_once dirname(__DIR__).'/autoload.php';
 
-truman\Drawer::main($argv);
+truman\core\Drawer::main($argv);

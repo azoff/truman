@@ -1,6 +1,6 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Buck;
+use truman\core\Buck;
 
 class Buck_Test extends PHPUnit_Framework_TestCase {
 	

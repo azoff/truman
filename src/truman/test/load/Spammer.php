@@ -1,9 +1,9 @@
 <? namespace truman\test\load;
 
-use truman\Client;
-use truman\Buck;
-use truman\Exception;
-use truman\Util;
+use truman\core\Client;
+use truman\core\Buck;
+use truman\core\Exception;
+use truman\core\Util;
 
 class Spammer {
 

@@ -1,10 +1,10 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Desk;
-use truman\Notification;
-use truman\Util;
-use truman\Drawer;
-use truman\Buck;
+use truman\core\Desk;
+use truman\core\Notification;
+use truman\core\Util;
+use truman\core\Drawer;
+use truman\core\Buck;
 
 function getThreadContext() {
 	$buck = new Buck();
@@ -43,7 +43,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		Util::writeObjectToStream($killer, $write);
 		$this->assertEquals(0, $drawer->tick());
 		$result = Util::readObjectFromStream($read);
-		$this->assertInstanceOf('truman\Result', $result);
+		$this->assertInstanceOf('truman\core\Result', $result);
 		$this->assertInstanceOf('stdClass', $data = $result->data());
 		$this->assertObjectHasAttribute('buck', $data);
 		$this->assertEquals($killer, $data->buck);
@@ -63,7 +63,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		Util::writeObjectToStream($killer, $write);
 		$this->assertEquals(0, $drawer->poll());
 		$result = Util::readObjectFromStream($read);
-		$this->assertInstanceOf('truman\Result', $result);
+		$this->assertInstanceOf('truman\core\Result', $result);
 		$this->assertInstanceOf('stdClass', $data = $result->data());
 		$this->assertObjectHasAttribute('buck', $data);
 		$this->assertEquals($killer, $data->buck);

@@ -1,4 +1,4 @@
-<? namespace truman;
+<? namespace truman\core;
 
 if (!extension_loaded('sockets'))
 	throw new Exception('Truman requires the PHP Sockets Extension', [

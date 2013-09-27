@@ -1,8 +1,8 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Buck;
-use truman\Client;
-use truman\Notification;
+use truman\core\Buck;
+use truman\core\Client;
+use truman\core\Notification;
 
 class Notification_Test extends PHPUnit_Framework_TestCase {
 	

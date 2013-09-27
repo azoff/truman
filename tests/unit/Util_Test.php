@@ -1,6 +1,6 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Util;
+use truman\core\Util;
 
 class Util_Test extends PHPUnit_Framework_TestCase {
 

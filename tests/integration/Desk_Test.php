@@ -1,12 +1,12 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Buck;
-use truman\Desk;
-use truman\Drawer;
-use truman\Notification;
-use truman\Socket;
-use truman\Client;
-use truman\Util;
+use truman\core\Buck;
+use truman\core\Desk;
+use truman\core\Drawer;
+use truman\core\Notification;
+use truman\core\Socket;
+use truman\core\Client;
+use truman\core\Util;
 use truman\test\integration\DeskCallbackAccumulator;
 
 class Desk_Test extends PHPUnit_Framework_TestCase {
@@ -122,7 +122,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$client = new Socket($port, ['force_client_mode' => 1]);
 		$this->assertTrue($client->send($buck));
 		$desk->start();
-		$this->assertInstanceOf('truman\Result', $result = $accumulator->getResultFirst());
+		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
 		$this->assertInstanceOf('stdClass', $data = $result->data());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($buck->invoke(), $data->retval);
@@ -194,7 +194,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$desk = new Desk(null, $accumulator->optionsExpectedResults(1));
 		$desk->enqueueBuck($buck);
 		$desk->start();
-		$this->assertInstanceOf('truman\Result', $result = $accumulator->getResultFirst());
+		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
 		$this->assertInstanceOf('stdClass', $data = $result->data());
 		$this->assertObjectHasAttribute($attribute, $data);
 		$desk->close();

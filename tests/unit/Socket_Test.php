@@ -1,8 +1,8 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Buck;
-use truman\Socket;
-use truman\Util;
+use truman\core\Buck;
+use truman\core\Socket;
+use truman\core\Util;
 
 class Socket_Test extends PHPUnit_Framework_TestCase {
 

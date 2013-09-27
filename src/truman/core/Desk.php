@@ -1,4 +1,4 @@
-<? namespace truman;
+<? namespace truman\core;
 
 use truman\interfaces\LoggerContext;
 

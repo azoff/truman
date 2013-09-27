@@ -1,6 +1,6 @@
-<? namespace truman;
+<? namespace truman\core;
 
-use truman\Buck;
+use truman\core\Buck;
 
 class Exception extends \Exception {
 

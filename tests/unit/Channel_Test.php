@@ -1,7 +1,7 @@
 <? require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
-use truman\Buck;
-use truman\Channel;
+use truman\core\Buck;
+use truman\core\Channel;
 
 class Hash_Test extends PHPUnit_Framework_TestCase {
 

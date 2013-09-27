@@ -1,10 +1,10 @@
 <? namespace truman\test\load;
 
-use truman\Desk;
-use truman\Buck;
-use truman\Exception;
-use truman\Result;
-use truman\Util;
+use truman\core\Desk;
+use truman\core\Buck;
+use truman\core\Exception;
+use truman\core\Result;
+use truman\core\Util;
 
 class LoadTest {
 

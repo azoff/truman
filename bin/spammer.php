@@ -2,7 +2,7 @@
 
 <? require_once dirname(__DIR__) . '/autoload.php';
 
-use truman\Util;
+use truman\core\Util;
 use truman\test\load\Spammer;
 
 $options = Util::getOptions([
