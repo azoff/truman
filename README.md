@@ -43,8 +43,8 @@ being said, here are some of the features you can expect to inherit should you d
 - __Channels__: The implementer can designate Bucks to run within a channel, or cluster of Desks, allowing for server specialization.
 - __Contexts__: The implementer can name a Buck's context, allowing for child Bucks to inherit their parent's context.
 - __Limits__: The implementer can explicitly define memory or timing limits on execution.
-- __Deduplication__: Identical Bucks are guaranteed* to execute one at a time throughout the distributed system.
-  + * It's about as good as a guarantee as any, but don't sue me over it; see the following section for details.
+- __Deduplication__: Identical Bucks are guaranteed to execute one at a time throughout the distributed system.
+  + It's about as good as a guarantee as any, but don't sue me over it; see the following section for details.
 - __Resiliant__: Desks default to automatically reap dead drawers, addressing any orphaned processes.
   + PHP memory leaks are simply avoided by allowing Drawers to die gracefully. Still working on Desks though...
 - __Efficiency__: Using PHP's [Socket Extension][8] for network communication means the guarantees of TCP without the latency of HTTP.
@@ -54,6 +54,36 @@ being said, here are some of the features you can expect to inherit should you d
   + Implementors can send Notifications to Desks to force their Drawers to do hot code replacements.
 - __Monitorable__: Loggers document every part of a Buck's lifecycle to local log files.
   + Monitors can be written to passively aggregate network activity and replay in the case of network failure.
+
+
+Distributed Deduplication
+-------------------------
+Deduplication is one of the core tenets guiding the design of Truman's network topography. Any client should be able
+to add a Buck to the distributed queue with the guarantee that it will not be executed in parallel somewhere else in
+the network. By enforcing this guarantee, Buck methods can be written in a way that is thread-safe, and unlikely to
+conflict with similar jobs. To accomplish distributed deduplication, Truman relies on a couple preconditions:
+
+- All Desks have a priority queue
+- All Desks track a set of running (or queued) Bucks
+- All Bucks map to one, and only one, Desk
+
+When a Client starts, it sends a Notification to all the Desks it knows about. The Notification contains the signature
+of the Client, which can be used to reconstruct the Client itself. Upon receiving a client update Notification, a Desk
+will enqueue it with the highest priority available (hence it will run before any other Bucks in its queue). Subsequently,
+the Desk will confirm that the Client encoded into the Notification is different and newer than the current Client it
+knows about. If it is, the Desk will update its internal Client and use the new network topography going forward.
+
+Afterwords, execution continues as normal. Bucks are removed from the queue and tested by the Desk using it's version of
+the Client. If the Client says the Buck belongs to the Desk, then the Desk executes the Buck. If the Client says the
+Buck belongs to a different Desk, then the Desk uses to Client to reroute the Buck. The latter case would only happen if
+the network topography changed while the Buck was in the queue.
+
+Assuming that Desks are not rapidly scaling up and down, the deduplication guarentee is pretty solid. However, if the
+network topography changes rapidly, it's possible to have situations where a Buck is executing while it's idential twin
+finds its way to a new Desk. This was a tradeoff this author was willing to accept given that his implementation's
+topography will rarely change and, when it does, the potential for duplicate jobs will not be great.
+
+If you would like to contribute to this algorithm, please feel free to [create an issue][11] or submit a pull request.
 
 
 Getting Started
@@ -128,7 +158,7 @@ __/tmp/truman.log__
   1380321799.4318 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_COMPLETE | 20621
 ```
 
-*Note* There are other Actors and messages that one could see in the log file. However, for the most part, this is the
+__Note__: There are other actors and events that one could see in the log file. However, for the most part, this is the
 standard interaction between a Client and Desk.
 
 Documentation
