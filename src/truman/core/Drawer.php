@@ -23,8 +23,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		'stream_output'      => STDOUT,
 	];
 
-	public static function main(array $argv, array $options = []) {
-		$reqs   = array_slice($argv, 1);
+	public static function main(array $argv, array $option_keys = null) {
+		$reqs    = Util::getArgs($argv);
+		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
 		$drawer = new Drawer($reqs, $options);
 		register_shutdown_function([$drawer, 'shutdown']);
 		exit($drawer->poll());

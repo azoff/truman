@@ -35,8 +35,9 @@ class LoadTest {
 		'prefill_queue'    => 0,
 	];
 
-	public static function main(array $options) {
-		$test = new LoadTest($options);
+	public static function main(array $argv = null, array $option_keys = null) {
+		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
+		$test    = new LoadTest($options);
 		exit($test->start());
 	}
 

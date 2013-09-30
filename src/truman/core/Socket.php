@@ -31,7 +31,7 @@ class Socket implements \JsonSerializable {
 
 	public function __construct($host_spec, array $options = []) {
 
-		if (is_int($host_spec))
+		if (is_numeric($host_spec))
 			$host_spec = ['port' => $host_spec];
 		if (is_string($host_spec))
 			$host_spec = parse_url($host_spec);

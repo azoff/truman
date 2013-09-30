@@ -70,10 +70,12 @@ class Util {
 		});
 	}
 
-	public static function getOptions(array $opts) {
-		$longopts  = array_values($opts);
-		$shortopts = implode('', array_keys($opts));
-		return getopt($shortopts, $longopts);
+	public static function getOptions(array $option_keys = null, array $default_options = []) {
+		if (is_null($option_keys))
+			$option_keys = array_keys($default_options);
+		$key_to_opt  = function($key){ return "{$key}::"; };
+		$option_keys = array_map($key_to_opt, $option_keys);
+		return getopt('', $option_keys) ?: [];
 	}
 
 	public static function getMemoryUsage() {

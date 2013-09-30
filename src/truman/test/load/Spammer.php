@@ -15,15 +15,14 @@ class Spammer {
 		'job_delay_max'    => 2000000, // max two seconds between sending jobs
 	];
 
-	public static function main(array $argv, array $options = null) {
-		$options = $options ?: [];
+	public static function main(array $argv, array $option_keys = null) {
 		$desk_specs = Util::getArgs($argv);
+		$options    = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
 		try {
 			$spammer = new Spammer($desk_specs, $options);
 			exit($spammer->poll());
 		} catch (Exception $ex) {
-			$pid = getmypid();
-			error_log("Spammer<{$pid}> {$ex->getMessage()}");
+			error_log("Error: {$ex->getMessage()}");
 			exit(1);
 		}
 	}

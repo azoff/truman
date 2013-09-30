@@ -58,38 +58,43 @@ being said, here are some of the features you can expect to inherit should you d
 
 Distributed Deduplication
 -------------------------
-Deduplication is one of the core tenets guiding the design of Truman's network topography. Any client should be able
-to add a Buck to the distributed queue with the guarantee that it will not be executed in parallel somewhere else in
-the network. By enforcing this guarantee, a Buck method can be written in a way that is thread-safe, and unlikely to
+Deduplication over the network is one of the core tenets guiding the design of Truman's network topography. Any client
+should be able to add a Buck to the distributed queue with the guarantee that it will not be executed in parallel on
+some other Desk. By enforcing this guarantee, a Buck method can be written in a way that is thread-safe, and unlikely to
 conflict with similar jobs. To accomplish distributed deduplication, Truman relies on a couple preconditions:
 
-- All Desks have a priority queue
-- All Desks track a set of running (or queued) Bucks
-- All Bucks map to one, and only one, Desk
+- Desks maintain a __priority queue__ of __unique__ Bucks
+- Clients __consistently__ pair Bucks with __the same__ Desk in the network
 
-When a Client starts, it sends a Notification to all the Desks it knows about. The Notification contains the signature
-of the Client, which can be used to reconstruct the Client itself. Upon receiving a client update Notification, a Desk
-will enqueue it with the highest priority available (hence it will run before any other Bucks in its queue). Subsequently,
-the Desk will confirm that the Client encoded into the Notification is different and newer than the current Client it
-knows about. If it is, the Desk will update its internal Client and use the new network topography going forward.
+With these preconditions in place, the network may accomplish distributed deduplication. In short, deduplication happens
+locally on each Desk, but Bucks are consistently sent to their paired Desks. Hence, any given Buck may only run once at
+a time, on a unique Desk in the network. For example, consider the typical lifecycle of a Buck in the network:
 
-Afterwords, execution continues as normal. Bucks are removed from the queue and tested by the Desk using it's version of
-the Client. If the Client says the Buck belongs to the Desk, then the Desk executes the Buck. If the Client says the
-Buck belongs to a different Desk, then the Desk uses to Client to reroute the Buck. The latter case would only happen if
-the network topography changed while the Buck was in the queue.
+- The user creates a Buck, to be executed by a Desk somewhere in the network
+- The user then instantiates a Client
+- The Client sends a Notification, containing an encoded copy of itself, to all connected Desks
+  - The Desks receive the Notification and enqueue it with the highest priority possible (to block other Bucks)
+  - The Desks then compare the Client encoded in the Notification to their current Client representation
+  - If the encoded Client is newer and different than the Desk's Client, then the Desk's Client is replaced
+- The Client routes the Buck to its paired Desk in the network.
+- Upon receiving the Buck over the network, the paired Desk determines whether to enqueue or drop the Buck.
+  - If the Desk is tracking an identical Buck, the Buck is dropped (local deduplication).
+- The Desk dequeues and reverifies the Buck, using its internal copy of the Client to check for ownership.
+  - If the Desk's Client pairs the Buck to another Desk, the Desk reroutes the Buck using the Client.
+  - If the Desk's Client pairs the Buck to the local Desk, the Buck is finally executed.
 
-Assuming that Desks are not rapidly scaling up and down, the deduplication guarentee is pretty solid. However, if the
-network topography changes rapidly, it's possible to have situations where a Buck is executing while it's idential twin
-finds its way to a new Desk. This was a tradeoff this author was willing to accept given that his implementation's
-topography will rarely change and, when it does, the potential for duplicate jobs will not be great.
+Assuming that Desks are not rapidly scaling up and down, distributed deduplication is theoretically guaranteed. However,
+if the network topography changes rapidly, it's possible to have situations where a Buck is executing while it's identical
+twin finds its way to a new Desk. This trade-off is one that implies scaling up and down should be done sparingly, or in
+times of low traffic. Eventually, there are plans to add a "delay" notification, which will pause all Desks for a
+predetermined amount of time while the network is scaled up or down.
 
 If you would like to contribute to this algorithm, please feel free to [create an issue][11] or submit a pull request.
 
-
 Getting Started
 ---------------
-The easiest way to get started with Truman is to include the autoloader and use the [convenience class][9]. Here is an
-[example client and server][10] running on the same box (the default settings):
+The easiest way to get started with Truman is to include [the autoloader][14] and use the [convenience class][9]. Here
+is an [example client and server][10] running on the same box (the default settings):
 
 __server.php__
 ```php
@@ -185,6 +190,8 @@ TODO
 - Document functions
 - What happens when a socket fails?
 - Autoscaling drawers?
+- Autoscaling desks?
+  + Send delay notification on scale up or down to protect guarantee.
 - Ensure pcntl and sockets are installed on target dist
 
 [1]:http://abhinavsingh.com/blog/2008/11/how-does-php-echos-a-hello-world-behind-the-scene/
@@ -200,3 +207,4 @@ TODO
 [11]:https://github.com/azoff/truman/issues
 [12]:https://github.com/azoff/truman/fork
 [13]:/tests
+[9]:/autoload.php

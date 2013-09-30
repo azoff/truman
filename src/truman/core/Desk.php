@@ -19,7 +19,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_CLIENT_IGNORE = 'CLIENT_IGNORE';
 	const LOGGER_EVENT_CLIENT_UPDATE = 'CLIENT_UPDATE';
 
+	const OPTION_INCLUDE                 = 'include';
 	const OPTION_DRAWER_COUNT            = 'drawer_count';
+	const OPTION_LOGGER_OPTS             = 'logger_options';
+	const OPTION_AUTO_REAP_DRAWERS       = 'auto_reap_drawers';
 	const OPTION_BUCK_RECEIVED_HANDLER   = 'buck_received_handler';
 	const OPTION_BUCK_PROCESSED_HANDLER  = 'buck_processed_handler';
 	const OPTION_RESULT_RECEIVED_HANDLER = 'result_received_handler';
@@ -52,15 +55,27 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private static $_KNOWN_HOSTS = [];
 
 	private static $_DEFAULT_OPTIONS = [
-		'client_signature'                   => '',
-		'include'                            => [],
-		'logger_options'                     => [],
-		'auto_reap_drawers'                  => true,
+		self::OPTION_INCLUDE                 => [],
+		self::OPTION_LOGGER_OPTS             => [],
+		self::OPTION_AUTO_REAP_DRAWERS       => true,
 		self::OPTION_DRAWER_COUNT            => 3,
 		self::OPTION_BUCK_RECEIVED_HANDLER   => null,
 		self::OPTION_BUCK_PROCESSED_HANDLER  => null,
 		self::OPTION_RESULT_RECEIVED_HANDLER => null,
 	];
+
+	public static function main(array $argv, array $option_keys = null) {
+		$args        = Util::getArgs($argv);
+		$options     = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
+		$desk_spec   = array_shift($args);
+		try {
+			$desk = new Desk($desk_spec, $options);
+			exit($desk->start());
+		} catch (Exception $ex) {
+			error_log("Error: {$ex->getMessage()}");
+			exit(1);
+		}
+	}
 
 	public function __construct($inbound_socket_spec = null, array $options = []) {
 
@@ -79,9 +94,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 					'method'  => __METHOD__
 				]);
 		}
-
-		if (strlen($sig = $options['client_signature']))
-			$this->client = Client::fromSignature($sig);
 
 		if (!is_null($handler = $options[self::OPTION_BUCK_RECEIVED_HANDLER])) {
 			if (!is_callable($handler))
@@ -111,10 +123,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 			else $this->result_received_handler = $handler;
 		}
 
-		if (!is_array($includes = $options['include']))
+		if (!is_array($includes = $options[self::OPTION_INCLUDE]))
 			$includes = [$includes];
 
-		$this->auto_reap_drawers    = $options['auto_reap_drawers'];
+		$this->auto_reap_drawers = $options[self::OPTION_AUTO_REAP_DRAWERS];
 
 		$this->command = implode(' ', array_merge(
 			['php bin/drawer.php'],
@@ -124,9 +136,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 		while ($options[self::OPTION_DRAWER_COUNT]-- > 0)
 			$this->spawnDrawer();
 
-		register_shutdown_function([$this, '__destruct']);
+		register_shutdown_function([$this, 'close']);
 
-		$this->logger = new Logger($this, $options['logger_options']);
+		$this->logger = new Logger($this, $options[self::OPTION_LOGGER_OPTS]);
 		$this->logger->log(self::LOGGER_EVENT_INIT, array_values($this->process_pids));
 
 	}
@@ -492,6 +504,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	public function start($timeout = 0) {
 		$this->logger->log(self::LOGGER_EVENT_START);
 		while($this->tick($timeout));
+		return 0;
 	}
 
 	public function stop() {
@@ -586,12 +599,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$this->receiveResults($timeout);
 		return $this->continue;
 
-	}
-
-	public static function startNew($inbound_host_spec = null, array $options = []) {
-		$desk = new Desk($inbound_host_spec, $options);
-		$desk->start();
-		return $desk;
 	}
 
 }
