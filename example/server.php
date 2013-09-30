@@ -1,5 +1,4 @@
 #!/usr/bin/env php
+# waits for incoming Bucks and executes them
 <? require_once dirname(__DIR__).'/autoload.php';
-
-// pause the script, listen, and delegate incoming jobs
 truman\Truman::listen();
