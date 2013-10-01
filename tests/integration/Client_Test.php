@@ -8,7 +8,7 @@ use truman\test\integration\DeskCallbackAccumulator;
 class Client_Test extends PHPUnit_Framework_TestCase {
 
 	public function testSignature() {
-		$options = ['desk_notification_timeout' => -1];
+		$options = [Client::OPTION_DESK_NOTIFICATION_TIMEOUT => -1];
 		$clientA = new Client([], $options);
 		$clientB = new Client($port = 12345, $options);
 		$this->assertNotEmpty($sig = $clientA->getSignature());
@@ -20,11 +20,11 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 	public function testNotifyDesks() {
 
 		$accumulator = new DeskCallbackAccumulator();
-		$desk = new Desk($port = 12345, $accumulator->optionsExpectedBucksIn());
+		$desk = new Desk($port = Desk::DEFAULT_PORT, $accumulator->optionsExpectedBucksIn());
 
 		// create an "outdated" client by not notifying desks
 		$spec = ["127.0.0.1:{$port}", "localhost:{$port}"];
-		$clientA = new Client($spec, ['desk_notification_timeout' => -1]);
+		$clientA = new Client($spec, [Client::OPTION_DESK_NOTIFICATION_TIMEOUT => -1]);
 		$clientA->updateInternals();
 
 		// new clients should auto notify any connected desks
@@ -62,22 +62,22 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 			'channels' => ['channelC']
 		);
 
-		$bucks[] = new Buck('foo', array(), array(
-			'channel' => $specs[0]['channels'][0]
-		));
+		$bucks[] = new Buck('foo', [], [
+			Buck::OPTION_CHANNEL => $specs[0]['channels'][0]
+		]);
 
-		$bucks[] = new Buck('bar', array(), array(
-			'channel' => $specs[0]['channels'][1]
-		));
+		$bucks[] = new Buck('bar', [], [
+			Buck::OPTION_CHANNEL => $specs[0]['channels'][1]
+		]);
 
-		$bucks[] = new Buck('poo', array(), array(
-			'channel' => $specs[1]['channels'][0]
-		));
+		$bucks[] = new Buck('poo', [], [
+			Buck::OPTION_CHANNEL => $specs[1]['channels'][0]
+		]);
 
 		foreach ($specs as $spec)
 			$desks[] = new Desk($spec);
 
-		$client = new Client($specs, ['desk_notification_timeout' => -1]);
+		$client = new Client($specs, [Client::OPTION_DESK_NOTIFICATION_TIMEOUT => -1]);
 
 		foreach ($bucks as $buck)
 			$client->sendBuck($buck);

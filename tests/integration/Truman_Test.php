@@ -17,12 +17,12 @@ class Truman_Test extends PHPUnit_Framework_TestCase {
 		$port = 12345;
 		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(2);
-		$desk = Truman::listen($port, $options, false);
+		Truman::setDesk($port, $options);
 		Truman::setClient($port);
 		$buck = Truman::enqueue('usleep', [100]);
-		$desk->start();
+		Truman::listen();
 		$results = $accumulator->getResults();
-		$data = $results[1]->data();
+		$data = $results[1]->getData();
 		$this->assertEquals($buck, $data->buck);
 	}
 

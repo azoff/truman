@@ -1,62 +1,115 @@
 <? namespace truman\core;
 
-if (!extension_loaded('sockets'))
-	throw new Exception('Truman requires the PHP Sockets Extension', [
-		'href' => 'http://php.net/manual/sockets.setup.php'
-	]);
-
 class Socket implements \JsonSerializable {
 
-	private static $_DEFAULT_OPTIONS = array(
-		'host'        => '0.0.0.0', // Bind to all incoming addresses
-		'port'        => 0, // Self-assign a port number
-		'buffer_size' => 262144, // Chunk size for socket reads
-		'socket_domain' => AF_INET, // IPv4 Internet based protocols
-		'socket_type' => SOCK_STREAM, // Provides sequenced, reliable, full-duplex, connection-based byte streams
-		'socket_protocol' => SOL_TCP, // A reliable, connection based, stream oriented, full duplex protocol
-		'size_limit' => 262144, // The maximum message size that can be sent or received
-		'reuse_port' => true, // Marks the socket as reusable
-		'max_connections' => null, // Number of connections to allow on the socket, null is system dependent
-		'nonblocking' => true, // Does not block on accept()
-		'force_client_mode' => 0, // Forces client mode for the socket
-		'msg_delimiter' => PHP_EOL // Splits message boundaries
-	);
+	/**
+	 * Selects the host to bind or connect to
+	 */
+	const OPTION_HOST = 'host';
+
+	/**
+	 * Selects the port to listen or send to (0 is self-assign)
+	 */
+	const OPTION_PORT = 'port';
+
+	/**
+	 * The domain of socket protocols to work with. For example Ipv4
+	 */
+	const OPTION_SOCKET_DOMAIN = 'socket_domain';
+
+	/**
+	 * How the Socket will be used; Truman uses streaming Sockets
+	 */
+	const OPTION_SOCKET_TYPE = 'socket_type';
+
+	/**
+	 * The named protocol to be used by the socket; Truman uses TCP
+	 */
+	const OPTION_SOCKET_PROTOCOL = 'socket_protocol';
+
+	/**
+	 * The maximum message size that can be sent or received
+	 */
+	const OPTION_MSG_SIZE_LIMIT = 'size_limit';
+
+	/**
+	 * Marks the socket as reusable in a shared context
+	 */
+	const OPTION_REUSE_PORT = 'reuse_port';
+
+	/**
+	 * Number of connections to allow on the socket, null is system dependent
+	 */
+	const OPTION_MAX_CONNECTIONS = 'max_connections';
+
+	/**
+	 * Does not block on accept()
+	 */
+	const OPTION_NONBLOCKING = 'nonblocking';
+
+	/**
+	 * Forces client mode for the socket
+	 */
+	const OPTION_FORCE_CLIENT_MODE = 'force_client_mode';
+
+	/**
+	 * Splits message boundaries
+	 */
+	const OPTION_MSG_DELIMITER = 'msg_delimiter';
+
+	private static $_DEFAULT_OPTIONS = [
+		self::OPTION_HOST              => '0.0.0.0',   // Bind to all incoming addresses
+		self::OPTION_PORT              => 0,           // Self-assign a port number
+		self::OPTION_SOCKET_DOMAIN     => AF_INET,     // IPv4 Internet based protocols
+		self::OPTION_SOCKET_TYPE       => SOCK_STREAM, // Provides sequenced, reliable, full-duplex, connection-based byte streams
+		self::OPTION_SOCKET_PROTOCOL   => SOL_TCP,     // A reliable, connection based, stream oriented, full duplex protocol
+		self::OPTION_MSG_SIZE_LIMIT        => 262144,
+		self::OPTION_REUSE_PORT        => true,
+		self::OPTION_MAX_CONNECTIONS   => null,        // System dependent
+		self::OPTION_NONBLOCKING       => true,
+		self::OPTION_FORCE_CLIENT_MODE => 0,
+		self::OPTION_MSG_DELIMITER     => PHP_EOL
+	];
 
 	private $server_mode;
 	private $client_mode;
 	private $host, $port;
-	private $options;
 	private $socket;
-	private $connections = array();
+	private $connections = [];
+	private $msg_size_limit;
+	private $msg_delimiter;
 
+	/**
+	 * @param int|array|string $host_spec A Socket specification to bind or connect to.
+	 * Valid values include:
+	 *  - A numeric port number
+	 *  - A URL containing an IP or domain, and port number
+	 *  - A keyed array, compatible with the output of PHP's parse_url() method
+	 * @param array $options Optional settings for the Socket. See Socket::$_DEFAULT_SETTINGS
+	 * @throws Exception if Unable to create the Socket
+	 */
 	public function __construct($host_spec, array $options = []) {
 
-		if (is_numeric($host_spec))
-			$host_spec = ['port' => $host_spec];
-		if (is_string($host_spec))
-			$host_spec = parse_url($host_spec);
-		if (!is_array($host_spec))
-			throw new Exception('Host spec must be an int, string, or array', [
-				'context'   => $this,
-				'host_spec' => $host_spec,
-				'method'    => __METHOD__
-			]);
+		$options += self::$_DEFAULT_OPTIONS;
 
-		$this->options = $host_spec + $options + self::$_DEFAULT_OPTIONS;
+		$spec = Util::normalizeSocketSpec($host_spec,
+			$options[self::OPTION_HOST],
+			$options[self::OPTION_PORT]
+		);
 
-		$this->host = $this->options['host'];
-		$this->port = $this->options['port'];
+		$this->host = $spec[self::OPTION_HOST];
+		$this->port = $spec[self::OPTION_PORT];
 
 		$this->socket = \socket_create(
-			$this->options['socket_domain'],
-			$this->options['socket_type'],
-			$this->options['socket_protocol']
+			$options[self::OPTION_SOCKET_DOMAIN],
+			$options[self::OPTION_SOCKET_TYPE],
+			$options[self::OPTION_SOCKET_PROTOCOL]
 		);
 
 		if ($this->socket === false)
 			$this->throwError('Unable to create a socket resource');
 
-		if ($this->options['reuse_port']) {
+		if ($options[self::OPTION_REUSE_PORT]) {
 
 			$option_set = \socket_set_option(
 				$this->socket,
@@ -70,12 +123,15 @@ class Socket implements \JsonSerializable {
 
 		}
 
-		$force_client_mode = $this->options['force_client_mode'];
+		$this->msg_delimiter  = $options[self::OPTION_MSG_DELIMITER];
+		$this->msg_size_limit = $options[self::OPTION_MSG_SIZE_LIMIT];
+
+		$force_client_mode = $options[self::OPTION_FORCE_CLIENT_MODE];
 
 		// server mode (local)
 		if (Util::isLocalAddress($this->getHost()) && !$force_client_mode) {
 
-			if ($this->options['nonblocking'])
+			if ($options[self::OPTION_NONBLOCKING])
 				if (\socket_set_nonblock($this->socket) === false);
 					$this->throwError('Unable to mark socket as non-blocking', $this->socket);
 
@@ -86,15 +142,15 @@ class Socket implements \JsonSerializable {
 			);
 
 			if ($bound === false)
-				$this->throwError("Unable to bind to port {$this->options['port']}", $this->socket);
+				$this->throwError("Unable to bind to port {$spec[self::OPTION_PORT]}", $this->socket);
 
 			$listening = \socket_listen(
 				$this->socket,
-				$this->options['max_connections']
+				$options[self::OPTION_MAX_CONNECTIONS]
 			);
 
 			if ($listening === false)
-				$this->throwError("Unable to listen to port {$this->options['port']}", $this->socket);
+				$this->throwError("Unable to listen to port {$spec[self::OPTION_PORT]}", $this->socket);
 
 			if (\socket_getsockname($this->socket, $this->host, $this->port) === false)
 				$this->throwError('Unable to get socket name', $this->socket);
@@ -112,7 +168,7 @@ class Socket implements \JsonSerializable {
 			);
 
 			if ($connected === false)
-				$this->throwError("Unable to connect to {$this->options['host']}:{$this->options['port']}",
+				$this->throwError("Unable to connect to {$spec[self::OPTION_HOST]}:{$spec[self::OPTION_PORT]}",
 					$this->socket);
 
 			if (@\socket_getpeername($this->socket, $this->host, $this->port) === false)
@@ -125,18 +181,30 @@ class Socket implements \JsonSerializable {
 
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function __destruct() {
 		$this->close();
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function __toString() {
 		return "Socket<{$this->getHostAndPort()}>";
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function jsonSerialize() {
 		return $this->__toString();
 	}
 
+	/**
+	 * Closes the Socket connection and frees the resource
+	 */
 	public function close() {
 		if (is_resource($this->socket)) {
 			\socket_set_block($this->socket);
@@ -147,6 +215,11 @@ class Socket implements \JsonSerializable {
 			$this->closeConnection($connection);
 	}
 
+	/**
+	 * Accepts external Socket connections
+	 * @param int $timeout The time to wait for an external Socket to connect
+	 * @return bool
+	 */
 	public function acceptConnection($timeout = 0) {
 
 		if (!$this->isServer())
@@ -171,6 +244,11 @@ class Socket implements \JsonSerializable {
 
 	}
 
+	/**
+	 * Closes an open connection
+	 * @param resource $connection The connection to close
+	 * @return bool
+	 */
 	public function closeConnection($connection) {
 
 		if (!is_resource($connection))
@@ -189,31 +267,61 @@ class Socket implements \JsonSerializable {
 
 	}
 
+	/**
+	 * Gets a readable representation of the the connection's address
+	 * @param resource $connection The connection to parse
+	 * @return string A host:port string representing the Socket connection
+	 */
 	public function getConnectionAddress($connection) {
 		\socket_getpeername($connection, $host, $port);
 		return "{$host}:{$port}";
 	}
 
+	/**
+	 * The host bound or connected to by this Socket
+	 * @return string
+	 */
 	public function getHost() {
 		return $this->host;
 	}
 
+	/**
+	 * The port sending or listening to by this Socket
+	 * @return int
+	 */
 	public function getPort() {
 		return (int) $this->port;
 	}
 
+	/**
+	 * A human-readable representation of this Socket's address
+	 * @return string
+	 */
 	public function getHostAndPort() {
 		return "{$this->getHost()}:{$this->getPort()}";
 	}
 
+	/**
+	 * Gets whether or not this Socket is writing to another Socket
+	 * @return bool
+	 */
 	public function isClient() {
 		return $this->client_mode;
 	}
 
+	/**
+	 * Gets whether or not this Socket is reading from one or more Sockets
+	 * @return bool
+	 */
 	public function isServer() {
 		return $this->server_mode;
 	}
 
+	/**
+	 * Opens a connection to a Socket, should it not already be open
+	 * @param resource $connection The connection to open
+	 * @return bool
+	 */
 	public function openConnection($connection) {
 
 		if (!is_resource($connection))
@@ -230,6 +338,11 @@ class Socket implements \JsonSerializable {
 
 	}
 
+	/**
+	 * Receives any messages from the Sockets connected to this Socket
+	 * @param int $timeout The time to wait for a message
+	 * @return mixed|null The unserialized data returned from the Socket, or null if no data was received
+	 */
 	public function receive($timeout = 0) {
 
 		if ($this->isClient()) {
@@ -248,17 +361,15 @@ class Socket implements \JsonSerializable {
 		if ($ready <= 0)
 			return null;
 
-		$read_limit = $this->options['size_limit'];
-
 		foreach ($connections as $connection) {
 
-			$message = @\socket_read($connection, $read_limit, PHP_NORMAL_READ);
+			$message = @\socket_read($connection, $this->msg_size_limit, PHP_NORMAL_READ);
 
 			// close out sockets that don't provide any data
 			if ($message === false) $this->closeConnection($connection);
 
 			// otherwise delegate interpretation of the data to the caller
-			else return Util::streamDataDecode($message, $this->options['msg_delimiter']);
+			else return Util::streamDataDecode($message, $this->msg_delimiter);
 
 		}
 
@@ -266,6 +377,14 @@ class Socket implements \JsonSerializable {
 
 	}
 
+	/**
+	 * Sends a message from this Socket to another Socket
+	 * @param mixed $message Anything that can be serialized by PHP
+	 * @param null|resource $connection An explicit connection to write to
+	 * @param int $timeout The time to wait until writing is possible
+	 * @return bool true if the message was written, otherwise false
+	 * @throws Exception If the message was invalid, or unable to read the socket
+	 */
 	public function send($message, $connection = null, $timeout = 0) {
 
 		$connections = is_resource($connection) ? [$connection] : [$this->socket];
@@ -276,17 +395,16 @@ class Socket implements \JsonSerializable {
 			$this->throwError('Unable to detect socket changes');
 
 		if ($ready <= 0)
-			return 0;
+			return false;
 
 		$connection     = $connections[0];
-		$message        = Util::streamDataEncode($message, $this->options['msg_delimiter']);
+		$message        = Util::streamDataEncode($message, $this->msg_delimiter);
 		$expected_bytes = strlen($message);
-		$size_limit     = $this->options['size_limit'];
 
-		if ($expected_bytes > $size_limit)
+		if ($expected_bytes > $this->msg_size_limit)
 			throw new Exception('Message size exceeds size limit', [
 				'context'    => $this,
-				'size_limit' => "{$size_limit} bytes",
+				'size_limit' => "{$this->msg_size_limit} bytes",
 				'method'     => __METHOD__
 			]);
 
@@ -301,6 +419,12 @@ class Socket implements \JsonSerializable {
 
 	}
 
+	/**
+	 * Throws an exception for Socket errors
+	 * @param string $msg Added context for the error
+	 * @param null|resource $socket The socket that experienced the error
+	 * @throws Exception The resultant Exception
+	 */
 	private function throwError($msg, $socket = null) {
 
 		$error_code = is_resource($socket) ?

@@ -123,7 +123,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertTrue($client->send($buck));
 		$desk->start();
 		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
-		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertInstanceOf('stdClass', $data = $result->getData());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($buck->invoke(), $data->retval);
 		$desk->close();
@@ -195,7 +195,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$desk->enqueueBuck($buck);
 		$desk->start();
 		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
-		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertInstanceOf('stdClass', $data = $result->getData());
 		$this->assertObjectHasAttribute($attribute, $data);
 		$desk->close();
 		return $data;

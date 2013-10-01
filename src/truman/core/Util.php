@@ -102,4 +102,41 @@ class Util {
 		];
 	}
 
+	public static function normalizeSocketSpec($socket_spec, $default_host = false, $default_port = false) {
+
+		$normalized_spec = [];
+
+		if (is_numeric($socket_spec))
+			$normalized_spec = ['port' => $socket_spec];
+		else if (is_string($socket_spec))
+			$normalized_spec = parse_url($socket_spec);
+
+		if (!is_array($normalized_spec))
+			throw new Exception('Socket specification must be an int, string, or array', [
+				'specification' => $socket_spec,
+				'method'        => __METHOD__
+			]);
+
+		if (!isset($normalized_spec['host'])) {
+			if ($default_host === false)
+				throw new Exception('Socket specification is missing host, and no default exists', [
+					'specification' => $socket_spec,
+					'method'        => __METHOD__
+				]);
+			$normalized_spec['host'] = $default_host;
+		}
+
+		if (!isset($normalized_spec['port'])) {
+			if ($default_host === false)
+				throw new Exception('Socket specification is missing port, and no default exists', [
+					'specification' => $socket_spec,
+					'method'        => __METHOD__
+				]);
+			$normalized_spec['port'] = $default_port;
+		}
+
+		return $normalized_spec;
+
+	}
+
 }

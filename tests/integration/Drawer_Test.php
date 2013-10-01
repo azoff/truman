@@ -25,7 +25,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$buck    = new Buck('getThreadContext', [], ['context' => $context]);
 		$drawer  = new Drawer();
 		$result  = $drawer->execute($buck);
-		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertInstanceOf('stdClass', $data = $result->getData());
 		$this->assertObjectHasAttribute('retval', $data);
 		$this->assertEquals($context, $data->retval);
 	}
@@ -44,7 +44,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(0, $drawer->tick());
 		$result = Util::readObjectFromStream($read);
 		$this->assertInstanceOf('truman\core\Result', $result);
-		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertInstanceOf('stdClass', $data = $result->getData());
 		$this->assertObjectHasAttribute('buck', $data);
 		$this->assertEquals($killer, $data->buck);
 		fclose($read);
@@ -64,7 +64,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(0, $drawer->poll());
 		$result = Util::readObjectFromStream($read);
 		$this->assertInstanceOf('truman\core\Result', $result);
-		$this->assertInstanceOf('stdClass', $data = $result->data());
+		$this->assertInstanceOf('stdClass', $data = $result->getData());
 		$this->assertObjectHasAttribute('buck', $data);
 		$this->assertEquals($killer, $data->buck);
 		fclose($read);

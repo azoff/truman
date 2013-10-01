@@ -2,27 +2,73 @@
 
 use truman\interfaces\LoggerContext;
 
+/**
+ * Class Drawer Does the work of executing Bucks
+ * @package truman\core
+ */
 class Drawer implements \JsonSerializable, LoggerContext {
 
 	const LOGGER_TYPE          = 'DRAWER';
+
+	/**
+	 * Occurs when this Drawer is instantiated
+	 */
 	const LOGGER_EVENT_INIT    = 'INIT';
+
+	/**
+	 * Occurs when this Drawer exits
+	 */
 	const LOGGER_EVENT_EXIT    = 'EXIT';
+
+	/**
+	 * Occurs when this Drawer encounters a recoverable error
+	 */
 	const LOGGER_EVENT_ERROR   = 'ERROR';
+
+	/**
+	 * Occurs when this Drawer encounters a fatal error
+	 */
 	const LOGGER_EVENT_FATAL   = 'FATAL';
 
+	/**
+	 * Options for this Drawer's internal Logger
+	 */
+	const OPTION_LOGGER_OPTIONS = 'logger_options';
+
+	/**
+	 * The time to wait for data from the stream descriptors
+	 */
+	const OPTION_TIMEOUT = 'timeout';
+
+	/**
+	 * The input stream descriptor
+	 */
+	const OPTION_STREAM_INPUT = 'stream_input';
+
+	/**
+	 * The output stream descriptor
+	 */
+	const OPTION_STREAM_OUTPUT = 'stream_output';
+
 	private $data;
-	private $options;
 	private $logger;
 	private $original_memory_limit;
 	private $original_time_limit;
+	private $input, $output;
+	private $timeout;
 
 	private static $_DEFAULT_OPTIONS = [
-		'logger_options'     => [],
-		'timeout'            => 0,
-		'stream_input'       => STDIN,
-		'stream_output'      => STDOUT,
+		self::OPTION_LOGGER_OPTIONS     => [],
+		self::OPTION_TIMEOUT            => 0,
+		self::OPTION_STREAM_INPUT       => STDIN,
+		self::OPTION_STREAM_OUTPUT      => STDOUT,
 	];
 
+	/**
+	 * Runs a Drawer from the command line
+	 * @param array $argv The arguments passed into the command line
+	 * @param array $option_keys Any options to set by command line (defaults to all options)
+	 */
 	public static function main(array $argv, array $option_keys = null) {
 		$reqs    = Util::getArgs($argv);
 		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
@@ -31,6 +77,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		exit($drawer->poll());
 	}
 
+	/**
+	 * Called when the script exits, used to log and output any erroneous Buck execution
+	 */
 	public function shutdown() {
 
 		$status_code = 0;
@@ -58,9 +107,17 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 	}
 
+	/**
+	 * Creates a new Drawer
+	 * @param array $requirements A list of include files to start the Drawer with
+	 * @param array $options Optional settings for this Drawer. See Drawer::$_DEFAULT_OPTIONS
+	 */
 	public function __construct(array $requirements = [], array $options = []) {
-		$this->options = $options + self::$_DEFAULT_OPTIONS;
-		$this->logger  = new Logger($this, $this->options['logger_options']);
+		$options += self::$_DEFAULT_OPTIONS;
+		$this->timeout = $options[self::OPTION_TIMEOUT];
+		$this->input   = $options[self::OPTION_STREAM_INPUT];
+		$this->output  = $options[self::OPTION_STREAM_OUTPUT];
+		$this->logger  = new Logger($this, $options[self::OPTION_LOGGER_OPTIONS]);
 		$this->original_memory_limit = ini_get('memory_limit');
 		$this->original_time_limit = ini_get('max_execution_time');
 		pcntl_signal(SIGALRM, [$this, 'timeoutError'], true);
@@ -69,33 +126,54 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	function __toString() {
 		$id = $this->getLoggerId();
 		return "Drawer<{$id}>";
 	}
 
+	/**
+	 * Called by the pcntl extension if the script times out.
+	 */
 	public function timeoutError() {
 		$runtime = $this->data['runtime'] + microtime(true);
 		@trigger_error("Script timed out after {$runtime} seconds", E_USER_WARNING);
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function jsonSerialize() {
 		return $this->__toString();
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function getLoggerType() {
 		return self::LOGGER_TYPE;
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function getLoggerId() {
 		return getmypid();
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public function getLogger() {
 		return $this->logger;
 	}
 
-
+	/**
+	 * Calls tick() until it returns a status code >= 0
+	 * @return int A status code >= 0
+	 */
 	public function poll() {
 		declare(ticks = 1);
 		do $status = $this->tick();
@@ -103,11 +181,15 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		return (int) $status;
 	}
 
+	/**
+	 * The basic work cycle for a Drawer. Receives input from the input stream and writes the result to the output stream
+	 * @return int -1 to continue tick()ing, anything >= 0 will stop ticking
+	 */
 	public function tick() {
 
-		$inputs = [$this->options['stream_input']];
+		$inputs = [$this->input];
 
-		if (!stream_select($inputs, $i, $j, $this->options['timeout']))
+		if (!stream_select($inputs, $i, $j, $this->timeout))
 			return -1;
 
 		$input = fgets(reset($inputs));
@@ -131,19 +213,32 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 	}
 
+	/**
+	 * Writes an execution result to the output stream
+	 * @param Result $result The execution Result
+	 */
 	private function result_write(Result $result) {
-		if (!Util::writeObjectToStream($result, $this->options['stream_output']))
+		if (!Util::writeObjectToStream($result, $this->output))
 			$this->logger->log(self::LOGGER_EVENT_ERROR, 'UNABLE TO WRITE TO STDOUT');
 	}
 
+	/**
+	 * Logs an execution result
+	 * @param Result $result The execution result
+	 */
 	private function result_log(Result $result) {
-		$data  = (array) $result->data();
+		$data  = (array) $result->getData();
 		$buck  = $data['buck'];
-		$event = $result->was_successful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_EXECUTE_ERROR;
+		$event = $result->wasSuccessful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_EXECUTE_ERROR;
 		unset($data['buck']);
 		$buck->getLogger()->log($event, $data);
 	}
 
+	/**
+	 * Executes a Buck under a monitored context. This is the only place Bucks should be invoke()d.
+	 * @param Buck $buck The Buck to execute
+	 * @return Result The result of Buck execution
+	 */
 	public function execute(Buck $buck) {
 
 		$pid = $this->getLoggerId();
