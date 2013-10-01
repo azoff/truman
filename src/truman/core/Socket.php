@@ -2,15 +2,23 @@
 
 class Socket implements \JsonSerializable {
 
+	const DEFAULT_HOST = 0;
+	const DEFAULT_PORT = 0;
+
 	/**
 	 * Selects the host to bind or connect to
 	 */
-	const OPTION_HOST = 'host';
+	const SPEC_HOST = 'host';
 
 	/**
 	 * Selects the port to listen or send to (0 is self-assign)
 	 */
-	const OPTION_PORT = 'port';
+	const SPEC_PORT = 'port';
+
+	/**
+	 * Selects the channels a specification will be a part of
+	 */
+	const SPEC_CHANNELS = 'channels';
 
 	/**
 	 * The domain of socket protocols to work with. For example Ipv4
@@ -58,12 +66,10 @@ class Socket implements \JsonSerializable {
 	const OPTION_MSG_DELIMITER = 'msg_delimiter';
 
 	private static $_DEFAULT_OPTIONS = [
-		self::OPTION_HOST              => '0.0.0.0',   // Bind to all incoming addresses
-		self::OPTION_PORT              => 0,           // Self-assign a port number
 		self::OPTION_SOCKET_DOMAIN     => AF_INET,     // IPv4 Internet based protocols
 		self::OPTION_SOCKET_TYPE       => SOCK_STREAM, // Provides sequenced, reliable, full-duplex, connection-based byte streams
 		self::OPTION_SOCKET_PROTOCOL   => SOL_TCP,     // A reliable, connection based, stream oriented, full duplex protocol
-		self::OPTION_MSG_SIZE_LIMIT        => 262144,
+		self::OPTION_MSG_SIZE_LIMIT    => 262144,
 		self::OPTION_REUSE_PORT        => true,
 		self::OPTION_MAX_CONNECTIONS   => null,        // System dependent
 		self::OPTION_NONBLOCKING       => true,
@@ -92,15 +98,12 @@ class Socket implements \JsonSerializable {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
-		$spec = Util::normalizeSocketSpec($host_spec,
-			$options[self::OPTION_HOST],
-			$options[self::OPTION_PORT]
-		);
+		$spec = Util::normalizeSocketSpec($host_spec, self::DEFAULT_HOST, self::DEFAULT_PORT);
 
-		$this->host = $spec[self::OPTION_HOST];
-		$this->port = $spec[self::OPTION_PORT];
+		$this->host = $spec[self::SPEC_HOST];
+		$this->port = $spec[self::SPEC_PORT];
 
-		$this->socket = \socket_create(
+		$this->socket = @\socket_create(
 			$options[self::OPTION_SOCKET_DOMAIN],
 			$options[self::OPTION_SOCKET_TYPE],
 			$options[self::OPTION_SOCKET_PROTOCOL]
@@ -111,7 +114,7 @@ class Socket implements \JsonSerializable {
 
 		if ($options[self::OPTION_REUSE_PORT]) {
 
-			$option_set = \socket_set_option(
+			$option_set = @\socket_set_option(
 				$this->socket,
 				SOL_SOCKET,
 				SO_REUSEADDR,
@@ -132,27 +135,27 @@ class Socket implements \JsonSerializable {
 		if (Util::isLocalAddress($this->getHost()) && !$force_client_mode) {
 
 			if ($options[self::OPTION_NONBLOCKING])
-				if (\socket_set_nonblock($this->socket) === false);
+				if (@\socket_set_nonblock($this->socket) === false);
 					$this->throwError('Unable to mark socket as non-blocking', $this->socket);
 
-			$bound = \socket_bind(
+			$bound = @\socket_bind(
 				$this->socket,
 				$this->getHost(),
 				$this->getPort()
 			);
 
 			if ($bound === false)
-				$this->throwError("Unable to bind to port {$spec[self::OPTION_PORT]}", $this->socket);
+				$this->throwError("Unable to bind to port {$spec[self::SPEC_PORT]}", $this->socket);
 
-			$listening = \socket_listen(
+			$listening = @\socket_listen(
 				$this->socket,
 				$options[self::OPTION_MAX_CONNECTIONS]
 			);
 
 			if ($listening === false)
-				$this->throwError("Unable to listen to port {$spec[self::OPTION_PORT]}", $this->socket);
+				$this->throwError("Unable to listen to port {$spec[self::SPEC_PORT]}", $this->socket);
 
-			if (\socket_getsockname($this->socket, $this->host, $this->port) === false)
+			if (@\socket_getsockname($this->socket, $this->host, $this->port) === false)
 				$this->throwError('Unable to get socket name', $this->socket);
 
 			$this->client_mode = false;
@@ -168,7 +171,7 @@ class Socket implements \JsonSerializable {
 			);
 
 			if ($connected === false)
-				$this->throwError("Unable to connect to {$spec[self::OPTION_HOST]}:{$spec[self::OPTION_PORT]}",
+				$this->throwError("Unable to connect to {$spec[self::SPEC_HOST]}:{$spec[self::SPEC_PORT]}",
 					$this->socket);
 
 			if (@\socket_getpeername($this->socket, $this->host, $this->port) === false)
@@ -206,11 +209,7 @@ class Socket implements \JsonSerializable {
 	 * Closes the Socket connection and frees the resource
 	 */
 	public function close() {
-		if (is_resource($this->socket)) {
-			\socket_set_block($this->socket);
-			\socket_set_option($this->socket, SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 1]);
-			\socket_close($this->socket);
-		}
+		Util::socket_close($this->socket);
 		foreach ($this->connections as $connection)
 			$this->closeConnection($connection);
 	}
@@ -255,11 +254,7 @@ class Socket implements \JsonSerializable {
 			return false;
 
 		$address = $this->getConnectionAddress($connection);
-		if (!array_key_exists($address, $this->connections))
-			return false;
-
-		if (\socket_close($connection) === false)
-			$this->throwError('Unable to close connection', $connection);
+		Util::socket_close($connection);
 
 		unset($this->connections[$address]);
 

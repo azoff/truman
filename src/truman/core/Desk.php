@@ -8,7 +8,7 @@ use truman\interfaces\LoggerContext;
  */
 class Desk implements \JsonSerializable, LoggerContext {
 
-	const DEFAULT_HOST = '127.0.0.1';
+	const DEFAULT_HOST = 0;
 	const DEFAULT_PORT = 12345;
 
 	/**
@@ -505,11 +505,11 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 		// ensure that the outbound and inbound ports match
 		$desk_spec = $client->getDeskSpec($buck);
-		if ($this->inbound_socket->getPort() !== intval($desk_spec['port']))
+		if ($this->inbound_socket->getPort() !== intval($desk_spec[Socket::SPEC_PORT]))
 			return false;
 
 		// check to see if we've seen this host before
-		$desk_host = gethostbyname($desk_spec['host']);
+		$desk_host = gethostbyname($desk_spec[Socket::SPEC_HOST]);
 		if (in_array($desk_host, self::$_KNOWN_HOSTS))
 			return true;
 
@@ -801,31 +801,17 @@ class Desk implements \JsonSerializable, LoggerContext {
 				'method'  => __METHOD__
 			]);
 
+		// reference the streams
+		$stdin  = $streams[self::STDIN];
+		$stdout = $streams[self::STDOUT];
+		$stderr = $streams[self::STDERR];
+
 		// get shell PID
 		$status = proc_get_status($process);
 		$process_pid = $status['pid'];
-
 		$key = "Drawer<{$process_pid}>";
 
-		if (!is_resource($stdin = $streams[self::STDIN]))
-			throw new Exception('Unable to write to drawer STDIN', [
-				'context' => $this,
-				'drawer'  => $key,
-				'method'  => __METHOD__
-			]);
-		if (!is_resource($stdout = $streams[self::STDOUT]))
-			throw new Exception('Unable to read from drawer STDOUT', [
-				'context' => $this,
-				'drawer'  => $key,
-				'method'  => __METHOD__
-			]);
-		if (!is_resource($stderr = $streams[self::STDERR]))
-			throw new Exception('Unable to write from drawer STDERR', [
-				'context' => $this,
-				'drawer'  => $key,
-				'method'  => __METHOD__
-			]);
-
+		// wait until the streams are ready
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 

@@ -14,9 +14,9 @@ class Channel implements \JsonSerializable {
 	/**
 	 * Creates a new channel
 	 * @param string $name The name of the channel
-	 * @param array $targets An optional list of targets in the Channel
+	 * @param array|string $targets An optional list of targets in the Channel
 	 */
-	public function __construct($name, array $targets = []) {
+	public function __construct($name, $targets = []) {
 		$this->count = 0;
 		$this->name = $name;
 		if (!is_array($targets))

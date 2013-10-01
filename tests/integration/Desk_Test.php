@@ -15,7 +15,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$includes[] = Util::tempPhpFile('function a(){ return "a"; }');
 		$includes[] = Util::tempPhpFile('function b(){ return "b"; }');
 		$accumulator = new DeskCallbackAccumulator();
-		$options = ['include' => $includes];
+		$options[Desk::OPTION_INCLUDE] = $includes;
 		$options = $accumulator->optionsExpectedResults(2, $options);
 		$desk = new Desk(null, $options);
 		$desk->enqueueBuck(new Buck('a'));
@@ -39,9 +39,9 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testPriority() {
 		$desk = new Desk();
-		$low = $desk->enqueueBuck(new Buck('usleep', [100], ['priority' => Buck::PRIORITY_LOW]));
-		$medium = $desk->enqueueBuck(new Buck('usleep', [101], ['priority' => Buck::PRIORITY_MEDIUM]));
-		$high = $desk->enqueueBuck(new Buck('usleep', [102], ['priority' => Buck::PRIORITY_HIGH]));
+		$low = $desk->enqueueBuck(new Buck('usleep', [100], [Buck::OPTION_PRIORITY => Buck::PRIORITY_LOW]));
+		$medium = $desk->enqueueBuck(new Buck('usleep', [101], [Buck::OPTION_PRIORITY => Buck::PRIORITY_MEDIUM]));
+		$high = $desk->enqueueBuck(new Buck('usleep', [102], [Buck::OPTION_PRIORITY => Buck::PRIORITY_HIGH]));
 		$this->assertNotNull($low);
 		$this->assertNotNull($medium);
 		$this->assertNotNull($high);
@@ -54,7 +54,8 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	public function testRefresh() {
 
 		$expected = 3;
-		$includes = [Desk::OPTION_DRAWER_COUNT => $expected, 'auto_reap_drawers' => false];
+		$includes[Desk::OPTION_DRAWER_COUNT] = $expected;
+		$includes[Desk::OPTION_AUTO_REAP_DRAWERS] = false;
 		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
@@ -97,13 +98,13 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testMemoryLimit() {
-		$buck = new Buck('str_repeat', ['$', 1000000], ['memory_limit' => 2048]);
+		$buck = new Buck('str_repeat', ['$', 1000000], [Buck::OPTION_MEMORY_LIMIT => 2048]);
 		$data = $this->resultAttributeTest($buck, 'error');
 		$this->assertEquals(E_ERROR, $data->error['type']);
 	}
 
 	public function testTimeLimit() {
-		$buck = new Buck('sleep', [1], ['time_limit' => 1]);
+		$buck = new Buck('sleep', [1], [Buck::OPTION_TIME_LIMIT => 1]);
 		$data = $this->resultAttributeTest($buck, 'error');
 		$this->assertEquals(E_USER_WARNING, $data->error['type']);
 	}
@@ -119,7 +120,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$buck   = new Buck('strlen', ['test']);
 		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk($port, $accumulator->optionsExpectedResults(1));
-		$client = new Socket($port, ['force_client_mode' => 1]);
+		$client = new Socket($port, [Socket::OPTION_FORCE_CLIENT_MODE => 1]);
 		$this->assertTrue($client->send($buck));
 		$desk->start();
 		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
@@ -142,7 +143,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 	public function testCleanReap() {
 
 
-		$includes = ['auto_reap_drawers' => false];
+		$includes = [Desk::OPTION_AUTO_REAP_DRAWERS => false];
 		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 
@@ -166,9 +167,8 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testDirtyReap() {
 
-		$includes[] = Util::tempPhpFile('function dirtyKill(){ exit(); }');
-
-		$includes = ['include' => $includes, 'auto_reap_drawers' => false];
+		$includes[Desk::OPTION_AUTO_REAP_DRAWERS] = false;
+		$includes[Desk::OPTION_INCLUDE] = Util::tempPhpFile('function dirtyKill(){ exit(); }');
 		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedResults(1, $includes);
 

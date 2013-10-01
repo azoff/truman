@@ -145,14 +145,14 @@ class Client implements \JsonSerializable, LoggerContext {
 
 		$desk_spec = Util::normalizeSocketSpec($desk_spec, Desk::DEFAULT_HOST, Desk::DEFAULT_PORT);
 
-		if (!isset($desk_spec['channels']))
-			$desk_spec['channels'] = [Buck::CHANNEL_DEFAULT];
+		if (!isset($desk_spec[Socket::SPEC_CHANNELS]))
+			$desk_spec[Socket::SPEC_CHANNELS] = [Buck::CHANNEL_DEFAULT];
 
-		if (!is_array($channels = $desk_spec['channels']))
+		if (!is_array($channels = $desk_spec[Socket::SPEC_CHANNELS]))
 			$channels = [$channels];
 
-		$schannels = serialize($desk_spec['channels']);
-		$target = "{$desk_spec['host']}:{$desk_spec['port']}::{$schannels}";
+		$schannels = serialize($desk_spec[Socket::SPEC_CHANNELS]);
+		$target = "{$desk_spec[Socket::SPEC_HOST]}:{$desk_spec[Socket::SPEC_PORT]}::{$schannels}";
 		$this->desk_specs[$target] = $desk_spec;
 
 		foreach ($channels as $channel) {
@@ -302,7 +302,7 @@ class Client implements \JsonSerializable, LoggerContext {
 	public function getTopography() {
 		$desks = [];
 		foreach ($this->desk_specs as $spec)
-			$desks[] = "{$spec['host']}:{$spec['port']}";
+			$desks[] = "{$spec[Socket::SPEC_HOST]}:{$spec[Socket::SPEC_PORT]}";
 		return ['desks' => $desks, 'timestamp' => $this->timestamp];
 	}
 
@@ -327,8 +327,8 @@ class Client implements \JsonSerializable, LoggerContext {
 	 */
 	public function createOrGetSocket($target, $desk_spec) {
 		if (!isset($this->sockets[$target])) {
-			$required = ['force_client_mode' => 1];
-			$this->sockets[$target] = new Socket($required + $desk_spec);
+			$required = [Socket::OPTION_FORCE_CLIENT_MODE => 1];
+			$this->sockets[$target] = new Socket($desk_spec, $required);
 		}
 		return $this->sockets[$target];
 	}

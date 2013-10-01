@@ -186,10 +186,8 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
-- Convert Unit Tests to use constants
-- Ensure Unit Tests and Load tests still work
-- Add a Notification that allows Desks to ignore/unignore bucks by context
 - Create a ResultData class instead of using a stdClass
+- Add a Notification that allows Desks to ignore/unignore bucks by context
 - What happens when a socket fails?
 - Autoscaling drawers?
 - Autoscaling desks?

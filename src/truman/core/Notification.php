@@ -119,7 +119,7 @@ class Notification extends Buck {
 		parent::logInit([
 			'type'    => $this->getTypeName(),
 			'notice'  => $this->getNotice(),
-			'options' => $options
+			'buck'    => $options
 		]);
 	}
 

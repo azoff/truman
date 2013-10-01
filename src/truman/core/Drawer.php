@@ -8,7 +8,7 @@ use truman\interfaces\LoggerContext;
  */
 class Drawer implements \JsonSerializable, LoggerContext {
 
-	const LOGGER_TYPE          = 'DRAWER';
+	const LOGGER_TYPE = 'DRAWER';
 
 	/**
 	 * Occurs when this Drawer is instantiated
@@ -73,6 +73,8 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$reqs    = Util::getArgs($argv);
 		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
 		$drawer = new Drawer($reqs, $options);
+		pcntl_signal(SIGTERM,      [$drawer, 'shutdown']);
+		pcntl_signal(SIGINT,       [$drawer, 'shutdown']);
 		register_shutdown_function([$drawer, 'shutdown']);
 		exit($drawer->poll());
 	}
@@ -80,9 +82,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	/**
 	 * Called when the script exits, used to log and output any erroneous Buck execution
 	 */
-	public function shutdown() {
-
-		$status_code = 0;
+	public function shutdown($status_code = -1) {
 
 		// something bad happened; let papa know
 		if (isset($this->data)) {
@@ -96,14 +96,16 @@ class Drawer implements \JsonSerializable, LoggerContext {
 			$this->data['memory'] = Util::getMemoryUsage();
 
 			$result = new Result(false, (object) $this->data);
+
 			$this->result_log($result);
 			$this->result_write($result);
 			$status_code = $error['type'];
 		}
 
-
-		$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
-		exit($status_code);
+		if ($status_code >= 0) {
+			$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
+			exit($status_code);
+		}
 
 	}
 
@@ -189,7 +191,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 		$inputs = [$this->input];
 
-		if (!stream_select($inputs, $i, $j, $this->timeout))
+		if (!@stream_select($inputs, $i, $j, $this->timeout))
 			return -1;
 
 		$input = fgets(reset($inputs));

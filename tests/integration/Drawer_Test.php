@@ -22,7 +22,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 
 	public function testExecute() {
 		$context = 'test';
-		$buck    = new Buck('getThreadContext', [], ['context' => $context]);
+		$buck    = new Buck('getThreadContext', [], [Buck::OPTION_CONTEXT => $context]);
 		$drawer  = new Drawer();
 		$result  = $drawer->execute($buck);
 		$this->assertInstanceOf('stdClass', $data = $result->getData());
@@ -37,8 +37,8 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$killer = new Notification(Notification::TYPE_DRAWER_SIGNAL, 0);
 		$path   = Util::tempFifo();
 		$drawer = new Drawer([], [
-			'stream_input'  => $read  = fopen($path, 'r'),
-			'stream_output' => $write = fopen($path, 'w')
+			Drawer::OPTION_STREAM_INPUT  => $read  = fopen($path, 'r'),
+			Drawer::OPTION_STREAM_OUTPUT => $write = fopen($path, 'w')
 		]);
 		Util::writeObjectToStream($killer, $write);
 		$this->assertEquals(0, $drawer->tick());
@@ -57,8 +57,8 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$killer = new Notification(Notification::TYPE_DRAWER_SIGNAL, 0);
 		$path   = Util::tempFifo();
 		$drawer = new Drawer([], [
-			'stream_input'  => $read  = fopen($path, 'r'),
-			'stream_output' => $write = fopen($path, 'w')
+			Drawer::OPTION_STREAM_INPUT  => $read  = fopen($path, 'r'),
+			Drawer::OPTION_STREAM_OUTPUT => $write = fopen($path, 'w')
 		]);
 		Util::writeObjectToStream($killer, $write);
 		$this->assertEquals(0, $drawer->poll());

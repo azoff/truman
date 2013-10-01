@@ -3,6 +3,7 @@
 use truman\core\Client;
 use truman\core\Buck;
 use truman\core\Desk;
+use truman\core\Socket;
 use truman\test\integration\DeskCallbackAccumulator;
 
 class Client_Test extends PHPUnit_Framework_TestCase {
@@ -15,6 +16,8 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 		$clientA->addDeskSpec($port, -1);
 		$this->assertNotEquals($sig, $clientA->getSignature());
 		$this->assertEquals($clientB->getDeskSpecs(), $clientA->getDeskSpecs());
+		$clientA->close();
+		$clientB->close();
 	}
 
 	public function testNotifyDesks() {
@@ -38,7 +41,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 		$this->assertNotEquals($clientA->getSignature(), $desk->getClient()->getSignature());
 
 		// existing client updates should be reflected
-		$spec['host'] = '127.0.0.1';
+		$spec[Socket::SPEC_HOST] = '127.0.0.1';
 		$clientB->addDeskSpec("localhost:{$port}");
 		$desk->start();
 		$this->assertEquals(
@@ -46,6 +49,8 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 			$desk->getClient()->getDeskCount()
 		);
 
+		$clientA->close();
+		$clientB->close();
 		$desk->close();
 
 	}
@@ -53,27 +58,28 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 	public function testChannels() {
 
 		$specs[] = array(
-			'port' => 12346,
-			'channels' => ['channelA', 'channelB']
+			Socket::SPEC_PORT     => 12346,
+			Socket::SPEC_CHANNELS => ['channelA', 'channelB']
 		);
 
 		$specs[] = array(
-			'port' => 12347,
-			'channels' => ['channelC']
+			Socket::SPEC_PORT     => 12347,
+			Socket::SPEC_CHANNELS => ['channelC']
 		);
 
 		$bucks[] = new Buck('foo', [], [
-			Buck::OPTION_CHANNEL => $specs[0]['channels'][0]
+			Buck::OPTION_CHANNEL => $specs[0][Socket::SPEC_CHANNELS][0]
 		]);
 
 		$bucks[] = new Buck('bar', [], [
-			Buck::OPTION_CHANNEL => $specs[0]['channels'][1]
+			Buck::OPTION_CHANNEL => $specs[0][Socket::SPEC_CHANNELS][1]
 		]);
 
 		$bucks[] = new Buck('poo', [], [
-			Buck::OPTION_CHANNEL => $specs[1]['channels'][0]
+			Buck::OPTION_CHANNEL => $specs[1][Socket::SPEC_CHANNELS][0]
 		]);
 
+		$desks = [];
 		foreach ($specs as $spec)
 			$desks[] = new Desk($spec);
 
@@ -84,11 +90,13 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 
 		foreach ($desks as $i => $desk) {
 			$actual = 0;
-			$expected = count($specs[$i]['channels']);
+			$expected = count($specs[$i][Socket::SPEC_CHANNELS]);
 			while ($desk->receiveBuck()) $actual++;
 			$this->assertEquals($expected, $actual);
 			$desk->close();
 		}
+
+		$client->close();
 
 	}
 
@@ -135,6 +143,7 @@ class Client_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($buck->getUUID(), $desk->processBuck()->getUUID());
 		$this->assertLessThan(1, $desk->getQueueSize());
 
+		$client->close();
 		$desk->close();
 
 	}
