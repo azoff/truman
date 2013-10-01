@@ -167,8 +167,7 @@ class DeskCallbackAccumulator {
 	 */
 	public function getResultRetvals() {
 		return $this->mapResults(function($result){
-			$data = $result->getData();
-			return isset($data->retval) ? $data->retval : null;
+			return $result->getRetval();
 		});
 	}
 

@@ -26,7 +26,7 @@ class Truman_Test extends PHPUnit_Framework_TestCase {
 		Truman::listen();
 		$results = $accumulator->getResults();
 		foreach ($results as $result) {
-			$test = $result->getData()->buck;
+			$test = $result->getBuck();
 			if ($test instanceof Notification) continue;
 			else $this->assertEquals($buck, $test);
 		}

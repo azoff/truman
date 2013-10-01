@@ -686,22 +686,22 @@ class Desk implements \JsonSerializable, LoggerContext {
 		foreach ($streams as $key => $stream) {
 
 			$result = Util::readObjectFromStream($stream);
-			$valid  = $result instanceof Result;
-			if (!$valid) continue;
-			$data = $result->getData();
 
-			if ($data && isset($data->buck)) {
-				$buck = $data->buck;
-				$pid = $this->process_pids[$key];
-				$this->untrackBuck($buck);
-				$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_COMPLETE, $pid);
+			if ($result instanceof Result) {
+
+				if ($buck = $result->getBuck()) {
+					$pid = $this->process_pids[$key];
+					$this->untrackBuck($buck);
+					$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_COMPLETE, $pid);
+				}
+
+				$this->process_ready[$key] = true;
+				$results[] = $result;
+
+				// check drawers after read
+				$this->checkDrawer($key);
+
 			}
-
-			$this->process_ready[$key] = true;
-			$results[] = $result;
-
-			// check drawers after read
-			$this->checkDrawer($key);
 
 		}
 

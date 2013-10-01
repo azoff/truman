@@ -466,10 +466,9 @@ class LoadTest {
 	public function onBuckCompleted(Result $result) {
 		$this->bucks_running--;
 		$this->bucks_completed++;
-		$data = $result->getData();
-		$this->drawer_memory[$data->pid] = $data->memory;
-		$this->drawer_base_memory[$data->pid] = $data->memory_base;
-		$this->work_time += $data->runtime;
+		$this->drawer_memory[$result->getPid()] = $result->getMemory();
+		$this->drawer_base_memory[$result->getPid()] = $result->getMemoryBase();
+		$this->work_time += $result->getRuntime();
 		$this->dirty = true;
 	}
 

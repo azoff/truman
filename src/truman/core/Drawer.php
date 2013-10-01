@@ -50,8 +50,13 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	 */
 	const OPTION_STREAM_OUTPUT = 'stream_output';
 
-	private $data;
+	/**
+	 * @var Buck
+	 */
+	private $current_buck;
+
 	private $logger;
+	private $result_options;
 	private $original_memory_limit;
 	private $original_time_limit;
 	private $input, $output;
@@ -77,36 +82,6 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		pcntl_signal(SIGINT,       [$drawer, 'shutdown']);
 		register_shutdown_function([$drawer, 'shutdown']);
 		exit($drawer->poll());
-	}
-
-	/**
-	 * Called when the script exits, used to log and output any erroneous Buck execution
-	 */
-	public function shutdown($status_code = -1) {
-
-		// something bad happened; let papa know
-		if (isset($this->data)) {
-			$error = error_get_last();
-			$this->logger->log(self::LOGGER_EVENT_FATAL, $error);
-			if (isset($error['message']{0}))
-				$this->data['error'] = $error;
-			if ($output = ob_get_clean())
-				$this->data['output'] = $output;
-			$this->data['runtime'] += microtime(true);
-			$this->data['memory'] = Util::getMemoryUsage();
-
-			$result = new Result(false, (object) $this->data);
-
-			$this->result_log($result);
-			$this->result_write($result);
-			$status_code = $error['type'];
-		}
-
-		if ($status_code >= 0) {
-			$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
-			exit($status_code);
-		}
-
 	}
 
 	/**
@@ -140,7 +115,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	 * Called by the pcntl extension if the script times out.
 	 */
 	public function timeoutError() {
-		$runtime = $this->data['runtime'] + microtime(true);
+		$runtime = $this->result_options[Result::DETAIL_RUNTIME] + microtime(true);
 		@trigger_error("Script timed out after {$runtime} seconds", E_USER_WARNING);
 	}
 
@@ -188,62 +163,107 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	 * @return int -1 to continue tick()ing, anything >= 0 will stop ticking
 	 */
 	public function tick() {
+		$this->read();
+		$status = $this->execute();
+		$this->write();
+		return $status;
+	}
+
+	/**
+	 * Reads the input and tries to extract a Buck from the stream
+	 * @return int the status code from the extracted Buck
+	 */
+	private function read() {
 
 		$inputs = [$this->input];
 
 		if (!@stream_select($inputs, $i, $j, $this->timeout))
-			return -1;
+			return;
 
 		$input = fgets(reset($inputs));
 		$buck  = Util::streamDataDecode($input);
 
-		if (is_null($buck)) return -1;
+		if (is_null($buck)) return;
+		if ($buck instanceof Buck) $this->setBuck($buck);
+		else $this->logger->log(self::LOGGER_EVENT_ERROR, $input);
 
-		$valid = $buck instanceof Buck;
-		if (!$valid) {
-			$this->logger->log(self::LOGGER_EVENT_ERROR, $input);
-			return -1;
+	}
+
+	/**
+	 * Sets the current internal Buck
+	 * @param Buck $buck The internal buck to execute
+	 */
+	public function setBuck(Buck $buck) {
+		$this->current_buck = $buck;
+	}
+
+	/**
+	 * Gets the result of the last execution
+	 * @return null|Result
+	 */
+	public function getResult() {
+		if (!$this->current_buck)   return null;
+		if (!$this->result_options) return null;
+		return new Result($this->current_buck, $this->result_options);
+	}
+
+	/**
+	 * Writes and logs the Buck execution result
+	 * @return Result The result of Buck execution
+	 */
+	private function write() {
+
+		if (is_null($result = $this->getResult()))
+			return null;
+
+		$event  = $result->wasSuccessful()      ?
+			Buck::LOGGER_EVENT_EXECUTE_COMPLETE :
+			Buck::LOGGER_EVENT_EXECUTE_ERROR    ;
+
+		$this->current_buck->getLogger()->log($event, $result);
+
+		if (!Util::writeObjectToStream($result, $this->output))
+			$this->logger->log(self::LOGGER_EVENT_ERROR, 'UNABLE TO WRITE TO STDOUT');
+
+		unset($this->current_buck);
+		unset($this->result_options);
+
+		return $result;
+
+	}
+
+	/**
+	 * Executes a Buck under a monitored context. This is the only place Bucks should be invoke()d.
+	 * @return int The status code of the executed Buck
+	 */
+	public function execute() {
+
+		if (!$this->current_buck) return -1;
+
+		$this->executeSetup();
+
+		try {
+			$this->result_options[Result::DETAIL_RETVAL] = @$this->current_buck->invoke();
+		} catch (Exception $ex) {
+			$this->result_options[Result::DETAIL_EXCEPTION] = $ex;
 		}
 
-		$this->result_write($this->execute($buck));
+		$this->executeTeardown();
 
-		if ($buck instanceof Notification)
-			if ($buck->isDrawerSignal())
-				return (int) $buck->getNotice();
+		if ($this->current_buck instanceof Notification)
+			if ($this->current_buck->isDrawerSignal())
+				return (int) $this->current_buck->getNotice();
 
 		return -1;
 
 	}
 
 	/**
-	 * Writes an execution result to the output stream
-	 * @param Result $result The execution Result
+	 * Sets up the execution fixture for a Buck
 	 */
-	private function result_write(Result $result) {
-		if (!Util::writeObjectToStream($result, $this->output))
-			$this->logger->log(self::LOGGER_EVENT_ERROR, 'UNABLE TO WRITE TO STDOUT');
-	}
-
-	/**
-	 * Logs an execution result
-	 * @param Result $result The execution result
-	 */
-	private function result_log(Result $result) {
-		$data  = (array) $result->getData();
-		$buck  = $data['buck'];
-		$event = $result->wasSuccessful() ? Buck::LOGGER_EVENT_EXECUTE_COMPLETE : Buck::LOGGER_EVENT_EXECUTE_ERROR;
-		unset($data['buck']);
-		$buck->getLogger()->log($event, $data);
-	}
-
-	/**
-	 * Executes a Buck under a monitored context. This is the only place Bucks should be invoke()d.
-	 * @param Buck $buck The Buck to execute
-	 * @return Result The result of Buck execution
-	 */
-	public function execute(Buck $buck) {
-
-		$pid = $this->getLoggerId();
+	private function executeSetup() {
+		$pid  = $this->getLoggerId();
+		$buck = $this->current_buck;
 		$buck->getLogger()->log(Buck::LOGGER_EVENT_EXECUTE_START, $pid);
 
 		$context = $buck->getContext();
@@ -252,45 +272,48 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		ob_start();
 		@trigger_error('');
 
-		$this->data                = [];
-		$this->data['pid']         = $pid;
-		$this->data['buck']        = $buck;
-		$this->data['runtime']     = -microtime(true);
-		$this->data['memory_base'] = TRUMAN_BASE_MEMORY;
+		$this->result_options = [Result::DETAIL_RUNTIME => -microtime(true)];
 
-		ini_set('memory_limit', $buck->getMemoryLimit());
+		ini_set('memory_limit',  $buck->getMemoryLimit());
 		pcntl_alarm($buck->getTimeLimit());
+	}
 
-		try {
-			$this->data['retval'] = @$buck->invoke();
-		} catch (Exception $ex) {
-			$this->data['exception'] = $ex;
-		}
-
+	/**
+	 * Tears down the execution fixture for a Buck
+	 */
+	private function executeTeardown() {
 		pcntl_alarm($this->original_time_limit);
 		ini_set('memory_limit', $this->original_memory_limit);
 
 		$error = error_get_last();
 		if (isset($error['message']{0}))
-			$this->data['error'] = $error;
+			$this->result_options[Result::DETAIL_ERROR] = $error;
+
 		if ($output = ob_get_clean())
-			$this->data['output'] = $output;
-		$this->data['runtime'] += microtime(true);
-		$this->data['memory']   = Util::getMemoryUsage();
+			$this->result_options[Result::DETAIL_OUTPUT] = $output;
 
-		Buck::unsetThreadContext($pid);
+		$this->result_options[Result::DETAIL_RUNTIME] += microtime(true);
+		Buck::unsetThreadContext($this->getLoggerId());
+	}
 
-		$data   = (object) $this->data;
-		$passed = !isset($data->exception) && !isset($data->error);
+	/**
+	 * Called when the script exits, used to log and output any erroneous Buck execution
+	 */
+	public function shutdown($status_code = -1) {
 
-		unset($this->data);
-		gc_collect_cycles();
+		// buck has not been unset, something bad happened
+		if (isset($this->current_buck)) {
+			$this->executeTeardown();
+			$result = $this->write();
+			$error = $result->getError();
+			$this->logger->log(self::LOGGER_EVENT_FATAL, $error);
+			$status_code = $result->getErrorType();
+		}
 
-		$result = new Result($passed, $data);
-
-		$this->result_log($result);
-
-		return $result;
+		if ($status_code >= 0) {
+			$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
+			exit($status_code);
+		}
 
 	}
 

@@ -12,14 +12,18 @@ class Socket_Test extends PHPUnit_Framework_TestCase {
 		$client = new Socket(12345, [Socket::OPTION_FORCE_CLIENT_MODE => 1]);
 		$this->assertTrue($client->send($message));
 		$this->assertEquals($message, $server->receive());
+		$client->close();
+		$server->close();
 	}
 
 	public function testSendReceiveObject() {
-		$buck = new Buck();
+		$timer = (object)['time' => time()];
 		$server = new Socket(12345);
 		$client = new Socket(12345, [Socket::OPTION_FORCE_CLIENT_MODE => 1]);
-		$this->assertTrue($client->send($buck));
-		$this->assertEquals($buck, $server->receive());
+		$this->assertTrue($client->send($timer));
+		$this->assertEquals($timer, $server->receive());
+		$client->close();
+		$server->close();
 	}
 
 }

@@ -73,46 +73,46 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	public function testBuck() {
 		$buck = new Buck('max', [1, 2]);
-		$data = $this->resultAttributeTest($buck, 'buck', $buck);
-		$this->assertEquals($buck, $data->buck);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertEquals($buck, $result->getBuck());
 	}
 
 	public function testRetval() {
 		$buck = new Buck('strlen', ['test']);
-		$data = $this->resultAttributeTest($buck, 'retval', $buck->invoke());
-		$this->assertEquals($buck->invoke(), $data->retval);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertEquals($buck->invoke(), $result->getRetval());
 	}
 
 	public function testException() {
 		// reflectionException is a missing method, causing a Reflection Exception
 		// this tests for how missing methods are handled, and how exceptions are returned
 		$buck = new Buck('reflectionException', ['test', 'test']);
-		$data = $this->resultAttributeTest($buck, 'exception');
-		$this->assertInstanceOf('Exception', $data->exception);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertInstanceOf('Exception', $result->getException());
 	}
 
 	public function testError() {
 		$buck = new Buck('fopen');
-		$data = $this->resultAttributeTest($buck, 'error');
-		$this->assertEquals(E_WARNING, $data->error['type']);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertEquals(E_WARNING, $result->getErrorType());
 	}
 
 	public function testMemoryLimit() {
 		$buck = new Buck('str_repeat', ['$', 1000000], [Buck::OPTION_MEMORY_LIMIT => 2048]);
-		$data = $this->resultAttributeTest($buck, 'error');
-		$this->assertEquals(E_ERROR, $data->error['type']);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertEquals(E_ERROR, $result->getErrorType());
 	}
 
 	public function testTimeLimit() {
 		$buck = new Buck('sleep', [1], [Buck::OPTION_TIME_LIMIT => 1]);
-		$data = $this->resultAttributeTest($buck, 'error');
-		$this->assertEquals(E_USER_WARNING, $data->error['type']);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertEquals(E_USER_WARNING, $result->getErrorType());
 	}
 
 	public function testOutput() {
 		$buck = new Buck('passthru', ['hostname']);
-		$data = $this->resultAttributeTest($buck, 'output');
-		$this->assertContains(gethostname(), $data->output);
+		$result = $this->resultAttributeTest($buck);
+		$this->assertContains(gethostname(), $result->getOutput());
 	}
 
 	public function testBuckSocket() {
@@ -124,9 +124,7 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 		$this->assertTrue($client->send($buck));
 		$desk->start();
 		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
-		$this->assertInstanceOf('stdClass', $data = $result->getData());
-		$this->assertObjectHasAttribute('retval', $data);
-		$this->assertEquals($buck->invoke(), $data->retval);
+		$this->assertEquals($buck->invoke(), $result->getRetval());
 		$desk->close();
 	}
 
@@ -189,16 +187,14 @@ class Desk_Test extends PHPUnit_Framework_TestCase {
 
 	}
 
-	private function resultAttributeTest(Buck $buck, $attribute) {
+	private function resultAttributeTest(Buck $buck) {
 		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk(null, $accumulator->optionsExpectedResults(1));
 		$desk->enqueueBuck($buck);
 		$desk->start();
 		$this->assertInstanceOf('truman\core\Result', $result = $accumulator->getResultFirst());
-		$this->assertInstanceOf('stdClass', $data = $result->getData());
-		$this->assertObjectHasAttribute($attribute, $data);
 		$desk->close();
-		return $data;
+		return $result;
 	}
 
 }

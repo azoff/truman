@@ -24,10 +24,10 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$context = 'test';
 		$buck    = new Buck('getThreadContext', [], [Buck::OPTION_CONTEXT => $context]);
 		$drawer  = new Drawer();
-		$result  = $drawer->execute($buck);
-		$this->assertInstanceOf('stdClass', $data = $result->getData());
-		$this->assertObjectHasAttribute('retval', $data);
-		$this->assertEquals($context, $data->retval);
+		$drawer->setBuck($buck);
+		$drawer->execute();
+		$this->assertNotNull($result = $drawer->getResult());
+		$this->assertEquals($context, $result->getRetval());
 	}
 
 	public function testTick() {
@@ -44,9 +44,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(0, $drawer->tick());
 		$result = Util::readObjectFromStream($read);
 		$this->assertInstanceOf('truman\core\Result', $result);
-		$this->assertInstanceOf('stdClass', $data = $result->getData());
-		$this->assertObjectHasAttribute('buck', $data);
-		$this->assertEquals($killer, $data->buck);
+		$this->assertEquals($killer, $result->getBuck());
 		fclose($read);
 		fclose($write);
 		unlink($path);
@@ -64,9 +62,7 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(0, $drawer->poll());
 		$result = Util::readObjectFromStream($read);
 		$this->assertInstanceOf('truman\core\Result', $result);
-		$this->assertInstanceOf('stdClass', $data = $result->getData());
-		$this->assertObjectHasAttribute('buck', $data);
-		$this->assertEquals($killer, $data->buck);
+		$this->assertEquals($killer, $result->getBuck());
 		fclose($read);
 		fclose($write);
 		unlink($path);
