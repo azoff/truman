@@ -1,4 +1,5 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\integration;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Buck;
 use truman\core\Desk;
@@ -7,9 +8,8 @@ use truman\core\Notification;
 use truman\core\Socket;
 use truman\core\Client;
 use truman\core\Util;
-use truman\test\integration\DeskCallbackAccumulator;
 
-class Desk_Test extends PHPUnit_Framework_TestCase {
+class Desk_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testInclude() {
 		$includes[] = Util::tempPhpFile('function a(){ return "a"; }');

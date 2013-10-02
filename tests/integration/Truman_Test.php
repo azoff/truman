@@ -1,12 +1,12 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\integration;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Client;
 use truman\core\Notification;
 use truman\core\Util;
 use truman\Truman;
-use truman\test\integration\DeskCallbackAccumulator;
 
-class Truman_Test extends PHPUnit_Framework_TestCase {
+class Truman_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testClient() {
 		$this->assertEquals(

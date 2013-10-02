@@ -1,10 +1,11 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\unit;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Buck;
 use truman\core\Client;
 use truman\core\Notification;
 
-class Notification_Test extends PHPUnit_Framework_TestCase {
+class Notification_Test extends \PHPUnit_Framework_TestCase {
 	
 	public function testClientUpdate() {
 		$client = new Client();

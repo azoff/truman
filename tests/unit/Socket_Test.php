@@ -1,10 +1,11 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\unit;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Buck;
 use truman\core\Socket;
 use truman\core\Util;
 
-class Socket_Test extends PHPUnit_Framework_TestCase {
+class Socket_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testSendReceive() {
 		$message = 'hello world!';

@@ -1,4 +1,5 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\integration;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Desk;
 use truman\core\Notification;
@@ -6,12 +7,7 @@ use truman\core\Util;
 use truman\core\Drawer;
 use truman\core\Buck;
 
-function getThreadContext() {
-	$buck = new Buck();
-	return $buck->getContext();
-}
-
-class Drawer_Test extends PHPUnit_Framework_TestCase {
+class Drawer_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testConstruct() {
 		$include = Util::tempPhpFile('function foobs(){}');
@@ -22,10 +18,12 @@ class Drawer_Test extends PHPUnit_Framework_TestCase {
 
 	public function testExecute() {
 		$context = 'test';
-		$buck    = new Buck('getThreadContext', [], [Buck::OPTION_CONTEXT => $context]);
-		$drawer  = new Drawer();
+		$include = Util::tempPhpFile('function subContext() { return (new truman\core\Buck)->getContext(); }');
+		$buck    = new Buck('subContext', [], [Buck::OPTION_CONTEXT => $context]);
+		$drawer  = new Drawer([$include]);
 		$drawer->setBuck($buck);
 		$drawer->execute();
+		Util::dump($drawer->getResult());
 		$this->assertNotNull($result = $drawer->getResult());
 		$this->assertEquals($context, $result->getRetval());
 	}

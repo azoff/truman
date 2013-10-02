@@ -1,8 +1,9 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\unit;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Util;
 
-class Util_Test extends PHPUnit_Framework_TestCase {
+class Util_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testIsLocalHost() {
 		$this->assertTrue(Util::isLocalAddress('::1'));
@@ -32,7 +33,7 @@ class Util_Test extends PHPUnit_Framework_TestCase {
 		$path       = Util::tempFifo();
 		$read       = fopen($path, 'r');
 		$write      = fopen($path, 'w');
-		$object     = Util::writeObjectToStream(new stdClass(), $write);
+		$object     = Util::writeObjectToStream(new \stdClass(), $write);
 		$this->assertEquals($object, Util::readObjectFromStream($read));
 	}
 

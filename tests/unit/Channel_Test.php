@@ -1,9 +1,10 @@
-<? require_once dirname(dirname(__DIR__)) . '/autoload.php';
+<? namespace truman\test\unit;
+require_once dirname(dirname(__DIR__)) . '/autoload.php';
 
 use truman\core\Buck;
 use truman\core\Channel;
 
-class Hash_Test extends PHPUnit_Framework_TestCase {
+class Hash_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testHash() {
 		$buckA = new Buck();
