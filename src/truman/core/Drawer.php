@@ -65,8 +65,8 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	private static $_DEFAULT_OPTIONS = [
 		self::OPTION_LOGGER_OPTIONS     => [],
 		self::OPTION_TIMEOUT            => 0,
-		self::OPTION_STREAM_INPUT       => STDIN,
-		self::OPTION_STREAM_OUTPUT      => STDOUT,
+		self::OPTION_STREAM_INPUT       => null,
+		self::OPTION_STREAM_OUTPUT      => null,
 	];
 
 	/**
@@ -77,8 +77,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	public static function main(array $argv, array $option_keys = null) {
 		$reqs    = Util::getArgs($argv);
 		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
+		$options[self::OPTION_STREAM_INPUT]  = STDIN;
+		$options[self::OPTION_STREAM_OUTPUT] = STDOUT;
 		$drawer = new Drawer($reqs, $options);
-		Util::onShutdown([$drawer, 'shutdown']);
 		exit($drawer->poll());
 	}
 
@@ -98,6 +99,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		pcntl_signal(SIGALRM, [$this, 'timeoutError'], true);
 		foreach ($requirements as $requirement) require_once $requirement;
 		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
+		Util::onShutdown([$this, 'shutdown']);
 	}
 
 	/**
@@ -172,17 +174,17 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	 */
 	private function read() {
 
-		$inputs = [$this->input];
-
-		if (!@stream_select($inputs, $i, $j, $this->timeout))
+		if (!is_resource($this->input))
 			return;
 
-		$input = fgets(reset($inputs));
-		$buck  = Util::streamDataDecode($input);
+		if (!@stream_select($i = [$this->input], $j, $k, $this->timeout))
+			return;
+
+		$buck = Util::readObjectFromStream($this->input);
 
 		if (is_null($buck)) return;
 		if ($buck instanceof Buck) $this->setBuck($buck);
-		else $this->logger->log(self::LOGGER_EVENT_ERROR, $input);
+		else $this->logger->log(self::LOGGER_EVENT_ERROR, $this->input);
 
 	}
 
@@ -219,8 +221,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 		$this->current_buck->getLogger()->log($event, $result);
 
-		if (!Util::writeObjectToStream($result, $this->output))
-			$this->logger->log(self::LOGGER_EVENT_ERROR, 'UNABLE TO WRITE TO STDOUT');
+		if (is_resource($this->output))
+			if (!Util::writeObjectToStream($result, $this->output))
+				$this->logger->log(self::LOGGER_EVENT_ERROR, 'UNABLE TO WRITE TO STDOUT');
 
 		unset($this->current_buck);
 		unset($this->result_options);
@@ -309,7 +312,7 @@ class Drawer implements \JsonSerializable, LoggerContext {
 
 		if ($status_code >= 0) {
 			$this->logger->log(self::LOGGER_EVENT_EXIT, $status_code);
-			exit($status_code);
+			if ($this->output) exit($status_code);
 		}
 
 	}
