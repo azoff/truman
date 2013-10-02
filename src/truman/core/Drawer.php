@@ -77,9 +77,10 @@ class Drawer implements \JsonSerializable, LoggerContext {
 	public static function main(array $argv, array $option_keys = null) {
 		$reqs    = Util::getArgs($argv);
 		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
-		$options[self::OPTION_STREAM_INPUT]  = STDIN;
-		$options[self::OPTION_STREAM_OUTPUT] = STDOUT;
+		$options[self::OPTION_STREAM_INPUT]  = $options[self::OPTION_STREAM_INPUT] ?:  STDIN;
+		$options[self::OPTION_STREAM_OUTPUT] = $options[self::OPTION_STREAM_OUTPUT] ?: STDOUT;
 		$drawer = new Drawer($reqs, $options);
+		Util::onShutdown([$drawer, 'shutdown']);
 		exit($drawer->poll());
 	}
 
@@ -99,7 +100,6 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		pcntl_signal(SIGALRM, [$this, 'timeoutError'], true);
 		foreach ($requirements as $requirement) require_once $requirement;
 		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
-		Util::onShutdown([$this, 'shutdown']);
 	}
 
 	/**

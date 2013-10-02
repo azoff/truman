@@ -158,6 +158,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$desk_spec   = array_shift($args);
 		try {
 			$desk = new Desk($desk_spec, $options);
+			Util::onShutdown([$desk, 'shutdown']);
 			exit($desk->start());
 		} catch (Exception $ex) {
 			error_log("Error: {$ex->getMessage()}");
@@ -233,8 +234,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$this->logger = new Logger($this, $options[self::OPTION_LOGGER_OPTS]);
 		$this->logger->log(self::LOGGER_EVENT_INIT, array_values($this->process_pids));
 
-		Util::onShutdown([$this, 'close']);
-
 	}
 
 	/**
@@ -282,6 +281,15 @@ class Desk implements \JsonSerializable, LoggerContext {
 			unset($this->inbound_socket);
 		}
 		$this->killDrawers();
+	}
+
+	/**
+	 * Called when the Desk's script is shut down
+	 */
+	public function shutdown($exit_code = -1) {
+		$this->close();
+		if ($exit_code >= 0)
+			exit($exit_code);
 	}
 
 	/**

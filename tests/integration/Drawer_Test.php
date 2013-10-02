@@ -23,7 +23,6 @@ class Drawer_Test extends \PHPUnit_Framework_TestCase {
 		$drawer  = new Drawer([$include]);
 		$drawer->setBuck($buck);
 		$drawer->execute();
-		Util::dump($drawer->getResult());
 		$this->assertNotNull($result = $drawer->getResult());
 		$this->assertEquals($context, $result->getRetval());
 	}

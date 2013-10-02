@@ -8,7 +8,7 @@ use truman\core\Socket;
 
 class Client_Test extends \PHPUnit_Framework_TestCase {
 
-	public function xtestSignature() {
+	public function testSignature() {
 		$options = [Client::OPTION_DESK_NOTIFICATION_TIMEOUT => -1];
 		$clientA = new Client([], $options);
 		$clientB = new Client($port = 12345, $options);
@@ -20,7 +20,7 @@ class Client_Test extends \PHPUnit_Framework_TestCase {
 		$clientB->close();
 	}
 
-	public function xtestNotifyDesks() {
+	public function testNotifyDesks() {
 
 		$accumulator = new DeskCallbackAccumulator();
 		$desk = new Desk($port = Desk::DEFAULT_PORT, $accumulator->optionsExpectedBucksIn());
@@ -55,7 +55,7 @@ class Client_Test extends \PHPUnit_Framework_TestCase {
 
 	}
 
-	public function xtestChannels() {
+	public function testChannels() {
 
 		$specs[] = array(
 			Socket::SPEC_PORT     => 12346,
@@ -102,16 +102,17 @@ class Client_Test extends \PHPUnit_Framework_TestCase {
 
 	public function testBuckReRouting() {
 
-		// all traffic will be sent to port 12345
+		$port = Desk::DEFAULT_PORT;
 
 		// create a client/server for 127.0.0.1
-		$desk   = new Desk(12345);
+		$desk   = new Desk($port);
 		$buck   = new Buck('gethostname');
-		$client = new Client('127.0.0.1:12345');
+		$client = new Client("127.0.0.1:{$port}");
 		$client->sendBuck($buck);
 
 		// the desk should receive a client notification and the job we made
-		while ($desk->receiveBuck());
+		do $desk->receiveBuck();
+		while ($desk->getQueueSize() < 2);
 		$this->assertEquals(2, $desk->getQueueSize());
 
 		// now, have the desk process the client notification
@@ -126,7 +127,8 @@ class Client_Test extends \PHPUnit_Framework_TestCase {
 		// this will implicitly send another client update to the desk
 		$intranet_ip = exec('ifconfig eth0| grep \'inet addr:\' | cut -d: -f2 | awk \'{ print $1}\'');
 		$client = new Client("{$intranet_ip}:12345");
-		while ($desk->receiveBuck());
+		do $desk->receiveBuck();
+		while ($desk->getQueueSize() < 2);
 		$this->assertNotNull($notification = $desk->processBuck());
 		$this->assertNotEquals($notification->getUUID(), $buck->getUUID());
 		$this->assertNotNull($new_client = $desk->getClient());
@@ -138,7 +140,8 @@ class Client_Test extends \PHPUnit_Framework_TestCase {
 		$this->assertEquals($routed->getUUID(), $buck->getUUID());
 
 		// now receive and process the buck over the localhost interface
-		while ($desk->receiveBuck());
+		do $desk->receiveBuck();
+		while ($desk->getQueueSize() < 1);
 		$this->assertGreaterThan(0, $desk->getQueueSize());
 		$this->assertEquals($buck->getUUID(), $desk->processBuck()->getUUID());
 		$this->assertLessThan(1, $desk->getQueueSize());

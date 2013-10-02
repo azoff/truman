@@ -55,10 +55,19 @@ class Notification extends Buck {
 
 	/**
 	 * Alias for getNotice()
+	 * @inheritdoc
 	 */
 	public function invoke() {
 		return $this->getNotice();
 	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public function calculateSeed() {
+		return "{$this->getType()}::{$this->getNotice()}";
+	}
+
 
 	/**
 	 * Gets the type of Notification this is
