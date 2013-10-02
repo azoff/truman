@@ -186,6 +186,7 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
+- Fix unit tests
 - Add a Notification that allows Desks to ignore/unignore bucks by context
 - What happens when a socket fails?
 - What if a Drawer never returns?

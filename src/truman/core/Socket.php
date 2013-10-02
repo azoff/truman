@@ -209,7 +209,7 @@ class Socket implements \JsonSerializable {
 	 * Closes the Socket connection and frees the resource
 	 */
 	public function close() {
-		Util::socket_close($this->socket);
+		Util::socketClose($this->socket);
 		foreach ($this->connections as $connection)
 			$this->closeConnection($connection);
 	}
@@ -254,7 +254,7 @@ class Socket implements \JsonSerializable {
 			return false;
 
 		$address = $this->getConnectionAddress($connection);
-		Util::socket_close($connection);
+		Util::socketClose($connection);
 
 		unset($this->connections[$address]);
 

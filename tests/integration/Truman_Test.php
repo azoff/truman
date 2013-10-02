@@ -8,7 +8,7 @@ use truman\test\integration\DeskCallbackAccumulator;
 
 class Truman_Test extends PHPUnit_Framework_TestCase {
 
-	public function xtestClient() {
+	public function testClient() {
 		$this->assertEquals(
 			Truman::setClient(null)->getSignature(),
 			Truman::getClient()->getSignature()

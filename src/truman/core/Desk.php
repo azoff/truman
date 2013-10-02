@@ -115,13 +115,15 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private $id;
 	private $client;
 	private $logger;
-	private $waiting;
-	private $tracking;
 	private $command;
 	private $continue;
-	private $process_ready;
 	private $inbound_socket;
 	private $auto_reap_drawers;
+
+	private $queue;
+	private $buck_states  = [];
+	private $buck_objects = [];
+	private $bucks_delegated = [];
 
 	private $stdins       = [];
 	private $stdouts      = [];
@@ -174,9 +176,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 		$options += self::$_DEFAULT_OPTIONS;
 
-		$this->id       = uniqid(microtime(true), true);
-		$this->tracking = [];
-		$this->waiting  = new \SplPriorityQueue();
+		$this->id    = uniqid(microtime(true), true);
+		$this->queue = new \SplPriorityQueue();
 
 		if (!is_null($inbound_socket_spec)) {
 			$this->inbound_socket = new Socket($inbound_socket_spec);
@@ -229,10 +230,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 		while ($options[self::OPTION_DRAWER_COUNT]-- > 0)
 			$this->spawnDrawer();
 
-		register_shutdown_function([$this, 'close']);
-
 		$this->logger = new Logger($this, $options[self::OPTION_LOGGER_OPTS]);
 		$this->logger->log(self::LOGGER_EVENT_INIT, array_values($this->process_pids));
+
+		Util::onShutdown([$this, 'close']);
 
 	}
 
@@ -319,7 +320,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @return int
 	 */
 	public function getQueueSize() {
-		return $this->waiting->count();
+		return $this->queue->count();
 	}
 
 	/**
@@ -345,7 +346,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 */
 	public function enqueueBuck(Buck $buck) {
 		if (!$this->isTrackingBuck($buck)) {
-			$this->waiting->insert($buck, $priority = $buck->getPriority());
+			$this->queue->insert($buck->getUUID(), $priority = $buck->getPriority());
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_ENQUEUED, $priority);
 			$this->trackBuck($buck, self::STATE_ENQUEUED);
 			return $buck;
@@ -360,7 +361,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @param Notification $notification
 	 */
 	public function refreshDrawers(Notification $notification) {
-		while (in_array(false, $this->process_ready))
+		while (count($this->bucks_delegated))
 			$this->receiveResults();
 		foreach ($this->getDrawerKeys() as $key) {
 			$this->killDrawer($key);
@@ -370,13 +371,26 @@ class Desk implements \JsonSerializable, LoggerContext {
 	}
 
 	/**
+	 * Gets a tracked Buck by UUID
+	 * @param string $uuid The UUID of the tracked Buck
+	 * @return null|Buck depending on whether the Buck is tracked or not
+	 */
+	private function getBuck($uuid) {
+		if (isset($this->buck_objects[$uuid]))
+			return $this->buck_objects[$uuid];
+		return null;
+	}
+
+	/**
 	 * Removes the top Buck from this Desk's priority queue
+	 * @param bool $untrack untracks the Buck on top of dequeuing it
 	 * @return null|Buck The top Buck from the queue, or null if the queue is empty or the Buck is untracked
 	 */
-	private function dequeueBuck() {
-		if ($this->waiting->isEmpty()) return null;
-		if ($buck = $this->untrackBuck($this->waiting->extract()))
-			$buck->getLogger()->log(Buck::LOGGER_EVENT_DEQUEUED);
+	private function dequeueBuck($untrack = true) {
+		if ($this->queue->isEmpty()) return null;
+		$buck = $this->getBuck($this->queue->extract());
+		if ($untrack) $buck = $this->untrackBuck($buck);
+		if ($buck) $buck->getLogger()->log(Buck::LOGGER_EVENT_DEQUEUED);
 		return $buck;
 	}
 
@@ -385,8 +399,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @return Buck|null The top Buck from the queue, or null if the queue is empty
 	 */
 	private function nextBuck() {
-		if ($this->waiting->isEmpty()) return null;
-		return $this->waiting->top();
+		if ($this->queue->isEmpty()) return null;
+		return $this->getBuck($this->queue->top());
 	}
 
 	/**
@@ -396,7 +410,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @return Buck The tracked Buck
 	 */
 	public function trackBuck(Buck $buck, $state) {
-		$this->tracking[$buck->getUUID()] = $state;
+		$uuid = $buck->getUUID();
+		$this->buck_states[$uuid] = $state;
+		$this->buck_objects[$uuid] = $buck;
 		return $buck;
 	}
 
@@ -407,7 +423,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 */
 	public function untrackBuck(Buck $buck) {
 		if (!$this->isTrackingBuck($buck)) return null;
-		unset($this->tracking[$buck->getUUID()]);
+		$uuid = $buck->getUUID();
+		unset($this->buck_states[$uuid]);
+		unset($this->buck_objects[$uuid]);
 		return $buck;
 	}
 
@@ -417,7 +435,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @return bool True if tracked, otherwise false
 	 */
 	public function isTrackingBuck(Buck $buck) {
-		return isset($this->tracking[$buck->getUUID()]);
+		return isset($this->buck_states[$buck->getUUID()]);
 	}
 
 	/**
@@ -427,7 +445,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 */
 	public function getBuckState(Buck $buck) {
 		if ($this->isTrackingBuck($buck))
-			return $this->tracking[$buck->getUUID()];
+			return $this->buck_states[$buck->getUUID()];
 		return self::STATE_MISSING;
 	}
 
@@ -460,6 +478,18 @@ class Desk implements \JsonSerializable, LoggerContext {
 	}
 
 	/**
+	 * Retries processing on a Buck
+	 * @param Buck $buck The Buck to retry
+	 * @param string|null $key The key of the drawer that caused a retry
+	 */
+	private function retryBuck(Buck $buck, $key = null) {
+		if (!is_null($key))
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $this->process_pids[$key]);
+		$buck->getLogger()->log(Buck::LOGGER_EVENT_RETRY);
+		$this->enqueueBuck($this->untrackBuck($buck));
+	}
+
+	/**
 	 * Kills a Drawer and unsets its key
 	 * @param string $key The key the drawer is named under, and the key to unset
 	 */
@@ -474,9 +504,16 @@ class Desk implements \JsonSerializable, LoggerContext {
 		fclose($this->stderrs[$key]);
 		proc_close($this->processes[$key]);
 
+		// if the drawer died without finishing a job, reenqueue it
+		if (isset($this->bucks_delegated[$key])) {
+			$uuid = $this->bucks_delegated[$key];
+			$buck = $this->getBuck($uuid);
+			$this->retryBuck($buck, $key);
+		}
+
 		// stop tracking the process
+		unset($this->bucks_delegated[$key]);
 		unset($this->process_pids[$key]);
-		unset($this->process_ready[$key]);
 		unset($this->stdins[$key]);
 		unset($this->stdouts[$key]);
 		unset($this->stderrs[$key]);
@@ -568,10 +605,12 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
 
+		// pass the processed Buck to the handler
 		if ($this->buck_processed_handler)
 			call_user_func($this->buck_processed_handler, $buck, $this);
 
-		return $this->dequeueBuck();
+		// dequeue the Buck, but keep tracking it
+		return $this->dequeueBuck(false);
 
 	}
 
@@ -617,7 +656,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 */
 	public function checkDrawer($key) {
 		if ($this->drawerAlive($key))
-			return $this->process_ready[$key];
+			return !isset($this->bucks_delegated[$key]);
 		if ($this->auto_reap_drawers)
 			$this->reapDrawer($key);
 		return false;
@@ -695,7 +734,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 					$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_COMPLETE, $pid);
 				}
 
-				$this->process_ready[$key] = true;
+				unset($this->bucks_delegated[$key]);
 				$results[] = $result;
 
 				// check drawers after read
@@ -748,7 +787,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 				continue;
 			}
 
-			$this->process_ready[$key] = false;
+			$this->bucks_delegated[$key] = $buck->getUUID();
+
 			return $this->trackBuck($written, self::STATE_DELEGATED);
 
 		}
@@ -815,7 +855,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 		stream_set_blocking($stdout, 0);
 		stream_set_blocking($stderr, 0);
 
-		$this->process_ready[$key] = true;
 		$this->process_pids[$key]  = $process_pid;
 		$this->processes[$key]     = $process;
 		$this->stdins[$key]        = $stdin;

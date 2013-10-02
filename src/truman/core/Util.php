@@ -223,11 +223,21 @@ class Util {
 	 * @param resource $socket The socket to close
 	 * @return bool true if the socket was closed, otherwise false
 	 */
-	public static function socket_close($socket) {
+	public static function socketClose($socket) {
 		if (!is_resource($socket)) return true;
 		\socket_set_block($socket);
 		\socket_set_option($socket, SOL_SOCKET, SO_LINGER, ['l_onoff' => 1, 'l_linger' => 1]);
 		return \socket_close($socket) === false ? false : true;
+	}
+
+	/**
+	 * Runs a handler on script shutdown or abort
+	 * @param callable $handler The handler to call
+	 */
+	public static function onShutdown($handler) {
+		pcntl_signal(SIGINT, $handler);
+		pcntl_signal(SIGTERM, $handler);
+		register_shutdown_function($handler);
 	}
 
 }

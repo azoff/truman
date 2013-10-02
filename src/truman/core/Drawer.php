@@ -78,9 +78,6 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$reqs    = Util::getArgs($argv);
 		$options = Util::getOptions($option_keys, self::$_DEFAULT_OPTIONS);
 		$drawer = new Drawer($reqs, $options);
-		pcntl_signal(SIGTERM,      [$drawer, 'shutdown']);
-		pcntl_signal(SIGINT,       [$drawer, 'shutdown']);
-		register_shutdown_function([$drawer, 'shutdown']);
 		exit($drawer->poll());
 	}
 
@@ -98,9 +95,9 @@ class Drawer implements \JsonSerializable, LoggerContext {
 		$this->original_memory_limit = ini_get('memory_limit');
 		$this->original_time_limit = ini_get('max_execution_time');
 		pcntl_signal(SIGALRM, [$this, 'timeoutError'], true);
-		foreach ($requirements as $requirement)
-			require_once $requirement;
+		foreach ($requirements as $requirement) require_once $requirement;
 		$this->logger->log(self::LOGGER_EVENT_INIT, $requirements);
+		Util::onShutdown([$this, 'shutdown']);
 	}
 
 	/**

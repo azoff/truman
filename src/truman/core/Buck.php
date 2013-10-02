@@ -42,6 +42,11 @@ class Buck implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_RECEIVED          = 'RECEIVED';
 
 	/**
+	 * Occurs when a Desk retries the processing of a Buck
+	 */
+	const LOGGER_EVENT_RETRY             = 'RETRY';
+
+	/**
 	 * Occurs when a Desk adds a Buck to its priority queue
 	 */
 	const LOGGER_EVENT_ENQUEUED          = 'ENQUEUED';
