@@ -406,7 +406,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * Exposes the top Buck in the queue
 	 * @return Buck|null The top Buck from the queue, or null if the queue is empty
 	 */
-	private function nextBuck() {
+	public function nextBuck() {
 		if ($this->queue->isEmpty()) return null;
 		return $this->getBuck($this->queue->top());
 	}
@@ -455,6 +455,14 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if ($this->isTrackingBuck($buck))
 			return $this->buck_states[$buck->getUUID()];
 		return self::STATE_MISSING;
+	}
+
+	/**
+	 * Gets the count of tracked bucks - both queued and running
+	 * @return int
+	 */
+	public function getBuckCount() {
+		return count($this->buck_objects);
 	}
 
 	/**

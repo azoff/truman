@@ -11,6 +11,18 @@ use truman\core\Util;
 
 class Desk_Test extends \PHPUnit_Framework_TestCase {
 
+	public function testRetryBuck() {
+		$buck = new Buck('sleep', ['5']);
+		$desk = new Desk(null, [Desk::OPTION_DRAWER_COUNT => 1]);
+		$desk->enqueueBuck($buck);
+		$this->assertEquals(1, $desk->getQueueSize());
+		$this->assertEquals($buck, $desk->processBuck());
+		$this->assertEquals(0, $desk->getQueueSize());
+		$desk->killDrawers();
+		$this->assertEquals(1, $desk->getQueueSize());
+		$this->assertEquals($buck, $desk->nextBuck());
+	}
+
 	public function testInclude() {
 		$includes[] = Util::tempPhpFile('function a(){ return "a"; }');
 		$includes[] = Util::tempPhpFile('function b(){ return "b"; }');
