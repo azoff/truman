@@ -192,8 +192,11 @@ class LoadTest {
 		self::format($model, 'alloc system memory', $this->getAllocMemory(), 'memory');
 		self::format($model, 'total system memory', $this->getMemory(), 'memory');
 
+		self::format($model, 'idle ratio', $this->getIdleRatio(), 'percent');
+		self::format($model, 'work ratio', $this->getWorkRatio(), 'percent');
+
 		self::format($model, 'bucks per second', $this->getBuckThroughput(), 'float');
-		self::format($model, 'bytes per buck', $this->getSizeOfQueuedBuck(), 'float');
+		self::format($model, 'bytes per buck', $this->getBuckAverageSize(), 'float');
 
 		foreach ($this->getSystemLoad() as $key => $load)
 			self::format($model, $key, $load, null);
@@ -235,8 +238,8 @@ class LoadTest {
 	 * Gets the average size of a Buck in a Desk's priority queue
 	 * @return float|int
 	 */
-	public function getSizeOfQueuedBuck() {
-		$queued = $this->getBucksEnqueuedCount();
+	public function getBuckAverageSize() {
+		$queued = $this->getBucksCount();
 		return $queued > 0 ? $this->getDeskAllocMemory() / $queued : 0;
 	}
 
@@ -325,7 +328,23 @@ class LoadTest {
 	 * @return float
 	 */
 	public function getWorkTime() {
-		return $this->work_time;
+		return $this->work_time / ($this->getActiveDrawerCount() * 1.0);
+	}
+
+	/**
+	 * Gets the percent of time spent idling
+	 * @return float
+	 */
+	public function getIdleRatio() {
+		return 1.0 - $this->getWorkRatio();
+	}
+
+	/**
+	 * Gets the percent of time spent working
+	 * @return float
+	 */
+	public function getWorkRatio() {
+		return $this->getWorkTime() / $this->getTotalTime();
 	}
 
 	/**
@@ -496,10 +515,11 @@ class LoadTest {
 	 */
 	private static function format(&$model, $key, $value, $type = 'int', $pad = 20) {
 		$key = str_pad(ucwords($key), $pad, ' ', STR_PAD_LEFT);
-		if ($type === 'int')    $value = number_format($value);
-		if ($type === 'float')  $value = number_format($value, 1);
-		if ($type === 'memory') $value = number_format($value) . ' Bytes (' . number_format($value/1048576.0, 1) . 'MB)';
-        if ($type === 'time')   $value = number_format($value/3600) . 'h ' .
+		if ($type === 'int')     $value = number_format($value);
+		if ($type === 'float')   $value = number_format($value, 1);
+		if ($type === 'percent') $value = number_format($value * 100, 1) . '%';
+		if ($type === 'memory')  $value = number_format($value) . ' Bytes (' . number_format($value/1048576.0, 1) . 'MB)';
+        if ($type === 'time')    $value = number_format($value/3600) . 'h ' .
                                          number_format($value/60) . 'm ' .
                                          number_format($value%60.0, 1) . 's';
 		$model[$key] = $value;
