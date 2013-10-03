@@ -84,6 +84,16 @@ class Desk implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_CLIENT_UPDATE = 'CLIENT_UPDATE';
 
 	/**
+	 * Occurs when this Desk spawns one or more new Drawers
+	 */
+	const LOGGER_EVENT_SCALE_UP = 'SCALE_UP';
+
+	/**
+	 * Occurs when this Desk drop one or more new Drawers
+	 */
+	const LOGGER_EVENT_SCALE_DOWN = 'SCALE_DOWN';
+
+	/**
 	 * A list of includes to instantiate this Desk's Drawers with
 	 */
 	const OPTION_INCLUDE                 = 'include';
@@ -285,6 +295,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 			$this->enableContext($notice);
 		else if ($notification->isDeskContextDisable())
 			$this->disableContext($notice);
+		else if ($notification->isDeskScaleUp())
+			$this->scaleUpDrawers($notice);
+		else if ($notification->isDeskScaleDown())
+			$this->scaleDownDrawers($notice);
 	}
 
 	/**
@@ -385,8 +399,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @param string $trigger the entity that triggered the refresh (optional, for logging)
 	 */
 	public function refreshDrawers($trigger = null) {
-		while (count($this->bucks_delegated))
-			$this->receiveResults();
+		$this->drainDrawers();
 		foreach ($this->getDrawerKeys() as $key) {
 			$this->killDrawer($key);
 			$this->spawnDrawer();
@@ -726,25 +739,25 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	/**
 	 * Ensures that all keyed Drawers are still alive, and reaps them should they be dead
-	 * @return bool
+	 * @return array any new Drawer keys
 	 */
 	public function reapDrawers() {
-		$reaped = 0;
+		$reaped = [];
 		foreach ($this->getDrawerKeys() as $key)
 			if (!$this->drawerAlive($key))
-				$reaped += $this->reapDrawer($key);
-		return true;
+				$reaped[] = $this->reapDrawer($key);
+		return $reaped;
 	}
 
 	/**
 	 * Reaps a keyed Drawer by removing its references and restarting it
 	 * @param string $key The drawer to reap
-	 * @return int The number of Drawers restarted
+	 * @return string the newly created drawer key
 	 */
 	public function reapDrawer($key) {
 		$this->logger->log(self::LOGGER_EVENT_REAPED, $this->process_pids[$key]);
 		$this->killDrawer($key);
-		return $this->spawnDrawer() ? 1 : 0;
+		return $this->spawnDrawer();
 	}
 
 	/**
@@ -932,6 +945,42 @@ class Desk implements \JsonSerializable, LoggerContext {
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Blocks until all drawers have returned a result
+	 */
+	public function drainDrawers() {
+		while (count($this->bucks_delegated))
+			$this->receiveResults();
+	}
+
+	/**
+	 * Adds one or more drawers to the pool of available workers
+	 * @param int $increment The number of drawers to add
+	 * @return int The count of active drawers
+	 */
+	public function scaleUpDrawers($increment) {
+		while ($increment-- > 0) $this->spawnDrawer();
+		$this->getLogger()->log(self::LOGGER_EVENT_SCALE_UP,
+			$count = $this->getActiveDrawerCount());
+		return $count;
+	}
+
+	/**
+	 * Removes one or more drawers from the pool of available workers
+	 * @param int $decrement The number of drawers to remove
+	 * @return int The count of active drawers
+	 */
+	public function scaleDownDrawers($decrement) {
+		$this->drainDrawers();
+		foreach ($this->getDrawerKeys() as $key) {
+			if (--$decrement < 0) break;
+			$this->killDrawer($key);
+		}
+		$this->getLogger()->log(self::LOGGER_EVENT_SCALE_DOWN,
+			$count = $this->getActiveDrawerCount());
+		return $count;
 	}
 
 	/**

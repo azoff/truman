@@ -11,6 +11,21 @@ use truman\core\Util;
 
 class Desk_Test extends \PHPUnit_Framework_TestCase {
 
+	public function testScaleDrawers() {
+		$accumulator = new DeskCallbackAccumulator();
+		$options[Desk::OPTION_DRAWER_COUNT] = $expected_count = 1;
+		$options = $accumulator->optionsExpectedResults(0, $options);
+		$desk = new Desk(null, $options);
+		$this->assertEquals($expected_count, $desk->getActiveDrawerCount());
+		$notif = new Notification(Notification::TYPE_DESK_SCALE_UP, $increment = 2);
+		$desk->enqueueBuck($notif); $desk->start();
+		$this->assertEquals($expected_count += $increment, $desk->getActiveDrawerCount());
+		$notif = new Notification(Notification::TYPE_DESK_SCALE_DOWN, $decrement = 1);
+		$desk->enqueueBuck($notif); $desk->start();
+		$this->assertEquals($expected_count - $decrement, $desk->getActiveDrawerCount());
+		$desk->close();
+	}
+
 	public function testDelayBuck() {
 		$accumulator = new DeskCallbackAccumulator();
 		$options = $accumulator->optionsExpectedBucksOut(3, [Desk::OPTION_DRAWER_COUNT => 3]);

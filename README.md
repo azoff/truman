@@ -186,13 +186,12 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
-- Add a Notification that allows Desks to ignore/unignore bucks by context
 - What happens when a socket fails?
 - What if a Drawer never returns?
 - Autoscaling drawers?
+  + Maybe base it off of an effective throughput in constructor?
 - Autoscaling desks?
-  + Send delay notification on scale up or down to protect guarantee.
-- Ensure pcntl and sockets are installed on target dist
+  + Should probably send "delay all" notification to existing desks (on scale up or down) to protect guarantee.
 
 [1]:http://abhinavsingh.com/blog/2008/11/how-does-php-echos-a-hello-world-behind-the-scene/
 [2]:http://en.wikipedia.org/wiki/Message_passing

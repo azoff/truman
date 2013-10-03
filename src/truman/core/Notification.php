@@ -29,6 +29,16 @@ class Notification extends Buck {
 	 */
 	const TYPE_DESK_CONTEXT_ENABLE = 4;
 
+	/**
+	 * Tells a Desk to scale its drawers up
+	 */
+	const TYPE_DESK_SCALE_UP = 5;
+
+	/**
+	 * Tells a Desk to scale its drawers down
+	 */
+	const TYPE_DESK_SCALE_DOWN = 6;
+
 	private $type, $notice;
 
 	private static $_DEFAULT_OPTIONS = array(
@@ -97,6 +107,8 @@ class Notification extends Buck {
 			case self::TYPE_DESK_CLIENT_UPDATE:   return 'DESK_CLIENT_UPDATE';
 			case self::TYPE_DESK_CONTEXT_DISABLE: return 'DESK_CONTEXT_DISABLE';
 			case self::TYPE_DESK_CONTEXT_ENABLE:  return 'DESK_CONTEXT_ENABLE';
+			case self::TYPE_DESK_SCALE_UP:        return 'DESK_SCALE_UP';
+			case self::TYPE_DESK_SCALE_DOWN:      return 'DESK_SCALE_DOWN';
 			case self::TYPE_DRAWER_SIGNAL:        return 'DRAWER_SIGNAL';
 			default:                              return 'UNKNOWN';
 		}
@@ -148,6 +160,22 @@ class Notification extends Buck {
 	 */
 	public function isDeskContextDisable() {
 		return $this->getType() === self::TYPE_DESK_CONTEXT_DISABLE;
+	}
+
+	/**
+	 * Convenience method to get whether or not this is a desk scale up Notification
+	 * @return bool
+	 */
+	public function isDeskScaleUp() {
+		return $this->getType() === self::TYPE_DESK_SCALE_UP;
+	}
+
+	/**
+	 * Convenience method to get whether or not this is a desk scale down Notification
+	 * @return bool
+	 */
+	public function isDeskScaleDown() {
+		return $this->getType() === self::TYPE_DESK_SCALE_DOWN;
 	}
 
 	/**
