@@ -176,9 +176,10 @@ class LoadTest {
 		self::format($model, 'completed bucks', $this->getBucksCompletedCount());
 		self::format($model, 'total bucks',     $this->getBucksCount());
 
-		self::format($model, 'work time',  $this->getWorkTime(), 'time');
-		self::format($model, 'idle time',  $this->getIdleTime(), 'time');
-		self::format($model, 'total time', $this->getTotalTime(), 'time');
+		self::format($model, 'work time',      $this->getWorkTime(), 'time');
+		self::format($model, 'idle time',      $this->getIdleTime(), 'time');
+		self::format($model, 'potential time', $this->getTotalTime(), 'time');
+		self::format($model, 'elapsed time',   $this->getElaspsedTime(), 'time');
 
 		self::format($model, 'base desk memory',  $this->getDeskBaseMemory(), 'memory');
 		self::format($model, 'alloc desk memory', $this->getDeskAllocMemory(), 'memory');
@@ -320,6 +321,14 @@ class LoadTest {
 	 * @return float
 	 */
 	public function getTotalTime() {
+		return $this->getActiveDrawerCount() * $this->getElaspsedTime();
+	}
+
+	/**
+	 * Gets the total time this LoadTest has been running
+	 * @return float
+	 */
+	public function getElaspsedTime() {
 		return microtime(true) - $this->start_time;
 	}
 
@@ -328,7 +337,7 @@ class LoadTest {
 	 * @return float
 	 */
 	public function getWorkTime() {
-		return $this->work_time / ($this->getActiveDrawerCount() * 1.0);
+		return $this->work_time;
 	}
 
 	/**
