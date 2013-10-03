@@ -166,6 +166,8 @@ Want to make Truman better? [Fork the repository][12] and submit a pull request!
 
 TODO
 ----
+- LoadTest needs to spawn Desks as their own processes and read the log file instead
+  + Right now the desks are spawned in the LoadTest monitor, effecting the true throughput of the system
 - What happens when a socket fails?
 - What if a Drawer never returns?
 - Autoscaling drawers?

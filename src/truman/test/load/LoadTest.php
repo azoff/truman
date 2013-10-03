@@ -528,9 +528,7 @@ class LoadTest {
 		if ($type === 'float')   $value = number_format($value, 1);
 		if ($type === 'percent') $value = number_format($value * 100, 1) . '%';
 		if ($type === 'memory')  $value = number_format($value) . ' Bytes (' . number_format($value/1048576.0, 1) . 'MB)';
-        if ($type === 'time')    $value = number_format($value/3600) . 'h ' .
-                                         number_format($value/60) . 'm ' .
-                                         number_format($value%60.0, 1) . 's';
+        if ($type === 'time')    $value = number_format($value, 1) . 's';
 		$model[$key] = $value;
 	}
 
