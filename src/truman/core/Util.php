@@ -235,8 +235,6 @@ class Util {
 	 * @param callable $handler The handler to call
 	 */
 	public static function onShutdown($handler) {
-		pcntl_signal(SIGINT, $handler);
-		pcntl_signal(SIGTERM, $handler);
 		register_shutdown_function($handler);
 	}
 

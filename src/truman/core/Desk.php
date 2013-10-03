@@ -180,6 +180,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$desk_spec   = array_shift($args);
 		try {
 			$desk = new Desk($desk_spec, $options);
+			Util::onShutdown([$desk, 'shutdown']);
 			exit($desk->start());
 		} catch (Exception $ex) {
 			error_log("Error: {$ex->getMessage()}");
@@ -318,6 +319,15 @@ class Desk implements \JsonSerializable, LoggerContext {
 		}
 		$this->drainDrawers();
 		$this->killDrawers();
+	}
+
+	/**
+	 * Called when the Desk's script is shut down
+	 */
+	public function shutdown($exit_code = -1) {
+		$this->close();
+		if ($exit_code >= 0)
+			exit($exit_code);
 	}
 
 	/**
@@ -590,6 +600,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 */
 	public function killDrawer($key) {
 
+		// handle unfinished jobs
+		$this->drainDrawer($key);
+
 		// send SIGTERM to all child processes
 		posix_kill($this->process_pids[$key], 15);
 
@@ -598,14 +611,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 		fclose($this->stdouts[$key]);
 		fclose($this->stderrs[$key]);
 		proc_close($this->processes[$key]);
-
-		// if the drawer died without finishing a job, reenqueue it
-		if (isset($this->bucks_delegated[$key])) {
-			$uuid = $this->bucks_delegated[$key];
-			$buck = $this->getBuck($uuid);
-			$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $this->process_pids[$key]);
-			$this->retryBuck($buck);
-		}
 
 		// stop tracking the process
 		unset($this->bucks_delegated[$key]);
@@ -960,8 +965,28 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * Blocks until all drawers have returned a result
 	 */
 	public function drainDrawers() {
-		while (count($this->bucks_delegated))
-			$this->receiveResults();
+		foreach ($this->getDrawerKeys() as $key)
+			$this->drainDrawer($key);
+	}
+
+	/**
+	 * Blocks until a drawer has returned a result
+	 * @param string $key The drawer key to check
+	 */
+	public function drainDrawer($key) {
+		if (isset($this->bucks_delegated[$key])) {
+			// if the drawer is still alive, drain it
+			if ($this->drawerAlive($key)) {
+				while ($this->bucks_delegated[$key])
+					$this->receiveResults();
+			// if the drawer is dead, retry the Buck
+			} else {
+				$uuid = $this->bucks_delegated[$key];
+				$buck = $this->getBuck($uuid);
+				$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $this->process_pids[$key]);
+				$this->retryBuck($buck);
+			}
+		}
 	}
 
 	/**

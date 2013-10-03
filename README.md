@@ -141,10 +141,6 @@ __/tmp/truman.log__
   1380825941.7168 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_START     | 42888
   1380825942.7251 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_COMPLETE  | {"success":true,"buck":"0769b54e1144b8c807c02a51645badca","details":{"pid":42888,"error":null,"retval":0,"memory":524288,"output":null,"runtime":1.0069179534912,"exception":null,"memory_base":262144}}
   1380825942.7371 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_COMPLETE | 42888
-  1380825945.7820 | DESK   | 0.0.0.0:12345                    | EXIT              |
-  1380825945.7820 | DRAWER | 42888                            | EXIT              | 2
-  1380825945.7834 | DRAWER | 42889                            | EXIT              | 2
-  1380825945.7847 | DRAWER | 42890                            | EXIT              | 2
 ```
 
 __Note__: There are other actors and events that one could see in the log file. However, for the most part, this is the
