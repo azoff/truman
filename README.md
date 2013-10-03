@@ -115,52 +115,36 @@ truman\Truman::enqueue('sleep', [1]);
 __/tmp/truman.log__
 ```sh
 # TIMESTAMP       | ACTOR  | ID, PID, OR SOCKET               | EVENT             | DETAILS
-  1380321794.4942 | DESK   | 0.0.0.0:12345                    | INIT              | [20620,20621,20622]
-# Desk starts in server.php, listening to port 12345 for incoming Bucks...
-  1380321794.4944 | DESK   | 0.0.0.0:12345                    | START             |
-# Three Drawers are spawned by the Desk...
-  1380321794.5408 | DRAWER | 20621                            | INIT              |
-  1380321794.5450 | DRAWER | 20622                            | INIT              |
-  1380321794.5489 | DRAWER | 20620                            | INIT              |
-# A Buck is created in client.php...
-  1380321798.3445 | BUCK   | 0769b54e1144b8c807c02a51645badca | INIT              | {"priority":2048,"channel":"default","allow_closures":false,"logger_options":[],"context":null,"memory_limit":134217728,"time_limit":60}
-# A Client is initialized in client.php...
-  1380321798.3467 | CLIENT | f0ec07cf240e0a864dd787a376e48ea4 | INIT              | {"desks":["127.0.0.1:12345"],"timestamp":"1380321798.3467"}
-# Client creates a Notification about the network topography...
-  1380321798.3482 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | INIT              | {"type":"CLIENT_UPDATE","notice":"YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtzOjk6IjEyNy4wLjAuMSI7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380321798.3467","options":{"priority":9223372036854775807,"channel":"default","allow_closures":false,"logger_options":[],"context":null,"memory_limit":134217728,"time_limit":60}}
-# Client sends the Notification to the network...
-  1380321798.3635 | CLIENT | f0ec07cf240e0a864dd787a376e48ea4 | NOTIFY_START      | "YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtzOjk6IjEyNy4wLjAuMSI7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380321798.3467"
-  1380321798.3733 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | SEND_START        | "127.0.0.1:12345"
-  1380321798.3735 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | SEND_COMPLETE     | "127.0.0.1:12345"
-  1380321798.3735 | CLIENT | f0ec07cf240e0a864dd787a376e48ea4 | NOTIFY_COMPLETE   |
-# Client sends the Buck (created earlier) to the network...
-  1380321798.3736 | BUCK   | 0769b54e1144b8c807c02a51645badca | SEND_START        | "127.0.0.1:12345"
-  1380321798.3737 | BUCK   | 0769b54e1144b8c807c02a51645badca | SEND_COMPLETE     | "127.0.0.1:12345"
-# Desk receives the Notification from the Client...
-  1380321798.3761 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | RECEIVED          | "0.0.0.0:12345"
-# Desk enqueues the Notification with the most urgent priority...
-  1380321798.3762 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | ENQUEUED          | 9223372036854775807
-# Desk creates its own version of the Client so that it understands the network
-  1380321798.4003 | CLIENT | f0ec07cf240e0a864dd787a376e48ea4 | INIT              | {"desks":["127.0.0.1:12345"],"timestamp":"1380321798.3467"}
-  1380321798.4004 | DESK   | 0.0.0.0:12345                    | CLIENT_UPDATE     | "f0ec07cf240e0a864dd787a376e48ea4"
-# Desk delegates the Notification to one of its drawers (PID 20620) for processing...
-  1380321798.4005 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | DELEGATE_START    | 20620
-  1380321798.4006 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | DEQUEUED          |
-# Desk receives the Buck from the Client...
-  1380321798.4065 | BUCK   | 0769b54e1144b8c807c02a51645badca | RECEIVED          | "0.0.0.0:12345"
-# Desk enqueues the Buck with medium priority...
-  1380321798.4066 | BUCK   | 0769b54e1144b8c807c02a51645badca | ENQUEUED          | 2048
-# Desk delegates the Buck to one of its drawers (PID 20621) for processing...
-  1380321798.4067 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_START    | 20621
-  1380321798.4068 | BUCK   | 0769b54e1144b8c807c02a51645badca | DEQUEUED          |
-# Drawer (PID 20620) executes Notification and returns the Result to the delegating Desk...
-  1380321798.4108 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | EXECUTE_START     | 20620
-  1380321798.4148 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | EXECUTE_COMPLETE  | {"pid":20620,"runtime":4.7922134399414e-5,"memory_base":262144,"retval":"YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtzOjk6IjEyNy4wLjAuMSI7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380321798.3467","memory":262144}
-  1380321798.4219 | NOTIF  | 577aef2845bdaeeddfb5bbb16d446910 | DELEGATE_COMPLETE | 20620
-# Drawer (PID 20621) executes Notification and returns the Result to the delegating Desk...
-  1380321798.4184 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_START     | 20621
-  1380321799.4236 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_COMPLETE  | {"pid":20621,"runtime":1.0033450126648,"memory_base":262144,"retval":0,"memory":262144}
-  1380321799.4318 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_COMPLETE | 20621
+  1380825933.5260 | DESK   | 0.0.0.0:12345                    | INIT              | [42888,42889,42890]
+  1380825933.5261 | DESK   | 0.0.0.0:12345                    | START             |
+  1380825933.5745 | DRAWER | 42890                            | INIT              |
+  1380825933.5783 | DRAWER | 42888                            | INIT              |
+  1380825933.5835 | DRAWER | 42889                            | INIT              |
+  1380825941.6286 | BUCK   | 0769b54e1144b8c807c02a51645badca | INIT              | {"callable":"sleep","args":[1],"options":{"priority":2048,"channel":"default","logger_options":[],"context":null,"memory_limit":134217728,"time_limit":60}}
+  1380825941.6479 | CLIENT | 1e6c4c2ca62794419bd64033dc094b97 | INIT              | {"desks":["0:12345"],"timestamp":"1380825941.6479"}
+  1380825941.6490 | NOTIF  | b166ad894d123765ccd2114487fde158 | INIT              | {"type":"DESK_CLIENT_UPDATE","notice":"YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtpOjA7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380825941.6479","buck":{"callable":"__NOOP__","args":[],"options":{"priority":9223372036854775807,"channel":"default","logger_options":[],"context":null,"memory_limit":134217728,"time_limit":60}}}
+  1380825941.6491 | CLIENT | 1e6c4c2ca62794419bd64033dc094b97 | NOTIFY_START      | "YToxOntpOjA7YTozOntzOjQ6InBvcnQiO2k6MTIzNDU7czo0OiJob3N0IjtpOjA7czo4OiJjaGFubmVscyI7YToxOntpOjA7czo3OiJkZWZhdWx0Ijt9fX0=@1380825941.6479"
+  1380825941.6761 | NOTIF  | b166ad894d123765ccd2114487fde158 | SEND_START        | "127.0.0.1:12345"
+  1380825941.6763 | NOTIF  | b166ad894d123765ccd2114487fde158 | SEND_COMPLETE     | "127.0.0.1:12345"
+  1380825941.6764 | CLIENT | 1e6c4c2ca62794419bd64033dc094b97 | NOTIFY_COMPLETE   |
+  1380825941.6765 | BUCK   | 0769b54e1144b8c807c02a51645badca | SEND_START        | "127.0.0.1:12345"
+  1380825941.6766 | BUCK   | 0769b54e1144b8c807c02a51645badca | SEND_COMPLETE     | "127.0.0.1:12345"
+  1380825941.6794 | NOTIF  | b166ad894d123765ccd2114487fde158 | RECEIVED          | "0.0.0.0:12345"
+  1380825941.6861 | NOTIF  | b166ad894d123765ccd2114487fde158 | ENQUEUED          | 9223372036854775807
+  1380825941.6884 | CLIENT | 1e6c4c2ca62794419bd64033dc094b97 | INIT              | {"desks":["0:12345"],"timestamp":"1380825941.6479"}
+  1380825941.6885 | DESK   | 0.0.0.0:12345                    | CLIENT_UPDATE     | "1e6c4c2ca62794419bd64033dc094b97"
+  1380825941.6885 | NOTIF  | b166ad894d123765ccd2114487fde158 | DEQUEUED          |
+  1380825941.6889 | BUCK   | 0769b54e1144b8c807c02a51645badca | RECEIVED          | "0.0.0.0:12345"
+  1380825941.6961 | BUCK   | 0769b54e1144b8c807c02a51645badca | ENQUEUED          | 2048
+  1380825941.6962 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_START    | 42888
+  1380825941.6963 | BUCK   | 0769b54e1144b8c807c02a51645badca | DEQUEUED          |
+  1380825941.7168 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_START     | 42888
+  1380825942.7251 | BUCK   | 0769b54e1144b8c807c02a51645badca | EXECUTE_COMPLETE  | {"success":true,"buck":"0769b54e1144b8c807c02a51645badca","details":{"pid":42888,"error":null,"retval":0,"memory":524288,"output":null,"runtime":1.0069179534912,"exception":null,"memory_base":262144}}
+  1380825942.7371 | BUCK   | 0769b54e1144b8c807c02a51645badca | DELEGATE_COMPLETE | 42888
+  1380825945.7820 | DESK   | 0.0.0.0:12345                    | EXIT              |
+  1380825945.7820 | DRAWER | 42888                            | EXIT              | 2
+  1380825945.7834 | DRAWER | 42889                            | EXIT              | 2
+  1380825945.7847 | DRAWER | 42890                            | EXIT              | 2
 ```
 
 __Note__: There are other actors and events that one could see in the log file. However, for the most part, this is the

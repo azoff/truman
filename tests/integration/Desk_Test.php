@@ -11,10 +11,23 @@ use truman\core\Util;
 
 class Desk_Test extends \PHPUnit_Framework_TestCase {
 
+	public function testStartStop() {
+		$accumulator = new DeskCallbackAccumulator();
+		$options = $accumulator->optionsExpectedResults(5);
+		$desk = new Desk(null, $options);
+		$desk->enqueueBuck($buck = new Buck('min', [2, 3], [Buck::OPTION_PRIORITY => Buck::PRIORITY_HIGH]));
+		$desk->enqueueBuck($buck = new Buck('min', [3, 4], [Buck::OPTION_PRIORITY => Buck::PRIORITY_HIGH]));
+		$desk->enqueueBuck(new Notification(Notification::TYPE_DESK_START));
+		$desk->enqueueBuck(new Notification(Notification::TYPE_DESK_STOP, null, [Buck::OPTION_PRIORITY => Buck::PRIORITY_LOW]));
+		$desk->processBuck(); // should start() the desk
+		$this->assertEquals(2, $accumulator->getResultCount());
+		$desk->close();
+	}
+
 	public function testScaleDrawers() {
 		$accumulator = new DeskCallbackAccumulator();
 		$options[Desk::OPTION_DRAWER_COUNT] = $expected_count = 1;
-		$options = $accumulator->optionsExpectedResults(0, $options);
+		$options = $accumulator->optionsExpectedBucksOut(1, $options);
 		$desk = new Desk(null, $options);
 		$this->assertEquals($expected_count, $desk->getActiveDrawerCount());
 		$notif = new Notification(Notification::TYPE_DESK_SCALE_UP, $increment = 2);
@@ -110,7 +123,7 @@ class Desk_Test extends \PHPUnit_Framework_TestCase {
 		$includes[Desk::OPTION_DRAWER_COUNT] = $expected;
 		$includes[Desk::OPTION_AUTO_REAP_DRAWERS] = false;
 		$accumulator = new DeskCallbackAccumulator();
-		$options = $accumulator->optionsExpectedResults(1, $includes);
+		$options = $accumulator->optionsExpectedBucksOut(1, $includes);
 
 		$desk = new Desk(null, $options);
 		$old_keys = $desk->getDrawerKeys();

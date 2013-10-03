@@ -3,6 +3,7 @@
 use truman\core\Desk;
 use truman\core\Buck;
 use truman\core\Exception;
+use truman\core\Notification;
 use truman\core\Result;
 use truman\core\Util;
 
@@ -483,9 +484,10 @@ class LoadTest {
 	/**
 	 * Handler for when Bucks are processed by the Desks
 	 */
-	public function onBuckRunning() {
+	public function onBuckRunning(Buck $buck) {
 		$this->bucks_enqueued--;
-		$this->bucks_running++;
+		if ($buck instanceof Notification) $this->bucks_completed++;
+		else $this->bucks_running++;
 		$this->dirty = true;
 	}
 

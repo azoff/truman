@@ -39,6 +39,16 @@ class Notification extends Buck {
 	 */
 	const TYPE_DESK_SCALE_DOWN = 6;
 
+	/**
+	 * Tells a Desk to start processing Bucks
+	 */
+	const TYPE_DESK_START = 7;
+
+	/**
+	 * Tells a Desk to stop processing Bucks
+	 */
+	const TYPE_DESK_STOP = 8;
+
 	private $type, $notice;
 
 	private static $_DEFAULT_OPTIONS = array(
@@ -103,6 +113,8 @@ class Notification extends Buck {
 	 */
 	public function getTypeName() {
 		switch($this->getType()) {
+			case self::TYPE_DESK_START:           return 'DESK_START';
+			case self::TYPE_DESK_STOP:            return 'DESK_STOP';
 			case self::TYPE_DESK_REFRESH:         return 'DESK_REFRESH';
 			case self::TYPE_DESK_CLIENT_UPDATE:   return 'DESK_CLIENT_UPDATE';
 			case self::TYPE_DESK_CONTEXT_DISABLE: return 'DESK_CONTEXT_DISABLE';
@@ -176,6 +188,22 @@ class Notification extends Buck {
 	 */
 	public function isDeskScaleDown() {
 		return $this->getType() === self::TYPE_DESK_SCALE_DOWN;
+	}
+
+	/**
+	 * Convenience method to get whether or not this is a desk start Notification
+	 * @return bool
+	 */
+	public function isDeskStart() {
+		return $this->getType() === self::TYPE_DESK_START;
+	}
+
+	/**
+	 * Convenience method to get whether or not this is a desk stop Notification
+	 * @return bool
+	 */
+	public function isDeskStop() {
+		return $this->getType() === self::TYPE_DESK_STOP;
 	}
 
 	/**

@@ -136,6 +136,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private $client;
 	private $logger;
 	private $command;
+	private $started;
 	private $continue;
 	private $inbound_socket;
 	private $auto_reap_drawers;
@@ -179,7 +180,6 @@ class Desk implements \JsonSerializable, LoggerContext {
 		$desk_spec   = array_shift($args);
 		try {
 			$desk = new Desk($desk_spec, $options);
-			Util::onShutdown([$desk, 'shutdown']);
 			exit($desk->start());
 		} catch (Exception $ex) {
 			error_log("Error: {$ex->getMessage()}");
@@ -284,21 +284,27 @@ class Desk implements \JsonSerializable, LoggerContext {
 	/**
 	 * Checks a notification to see if it applies to this Desk. If so, this method takes the appropriate action.
 	 * @param Notification $notification The notification to check.
+	 * @return bool true if the Notification was handled by the Desk
 	 */
 	public function checkNotification(Notification $notification) {
 		$notice = $notification->getNotice();
-		if ($notification->isDeskClientUpdate())
+		if ($yup = $notification->isDeskClientUpdate())
 			$this->updateClient($notice);
-		else if ($notification->isDeskRefresh())
+		else if ($yup = $notification->isDeskRefresh())
 			$this->refreshDrawers($notice);
-		else if ($notification->isDeskContextEnable())
+		else if ($yup = $notification->isDeskContextEnable())
 			$this->enableContext($notice);
-		else if ($notification->isDeskContextDisable())
+		else if ($yup = $notification->isDeskContextDisable())
 			$this->disableContext($notice);
-		else if ($notification->isDeskScaleUp())
+		else if ($yup = $notification->isDeskScaleUp())
 			$this->scaleUpDrawers($notice);
-		else if ($notification->isDeskScaleDown())
+		else if ($yup = $notification->isDeskScaleDown())
 			$this->scaleDownDrawers($notice);
+		else if ($yup = $notification->isDeskStart())
+			$this->start($notice);
+		else if ($yup = $notification->isDeskStop())
+			$this->stop($notice);
+		return $yup;
 	}
 
 	/**
@@ -310,16 +316,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 			$this->inbound_socket->__destruct();
 			unset($this->inbound_socket);
 		}
+		$this->drainDrawers();
 		$this->killDrawers();
-	}
-
-	/**
-	 * Called when the Desk's script is shut down
-	 */
-	public function shutdown($exit_code = -1) {
-		$this->close();
-		if ($exit_code >= 0)
-			exit($exit_code);
 	}
 
 	/**
@@ -702,27 +700,36 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 		// check to see if this is a client signature
 		if ($buck instanceof Notification)
-			$this->checkNotification($buck);
+			if ($this->checkNotification($buck))
+				return $this->dequeueProcessedBuck(true);
 
 		// check ownership, try to reroute, reenqueue if reroute failed
 		if (!$this->ownsBuck($buck))
-			return $this->rerouteBuck($buck, $timeout) ? $this->dequeueBuck(true) : null;
+			return $this->rerouteBuck($buck, $timeout) ? $this->dequeueProcessedBuck(true) : null;
 
 		// check if the Buck should be delayed
 		if ($this->shouldDelayBuck($buck))
-			return $this->delayBuck($buck) ? $this->dequeueBuck() : null;
+			return $this->delayBuck($buck) ? $this->dequeueProcessedBuck() : null;
 
 		// try to send the buck to the streams, or reenqueue if sending failed
 		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
 			return null;
 
-		// pass the processed Buck to the handler
-		if ($this->buck_processed_handler)
-			call_user_func($this->buck_processed_handler, $buck, $this);
-
 		// dequeue the Buck, but keep tracking it
-		return $this->dequeueBuck();
+		return $this->dequeueProcessedBuck();
 
+	}
+
+	/**
+	 * Implicitly dequeues and sends a Buck to any user-supplied handlers
+	 * @param bool $untrack true to stop tracking the Buck
+	 * @return null|Buck returns the dequeued Buck, if one exists
+	 */
+	private function dequeueProcessedBuck($untrack = false) {
+		if ($buck = $this->dequeueBuck($untrack))
+			if ($this->buck_processed_handler)
+				call_user_func($this->buck_processed_handler, $buck, $this);
+		return $buck;
 	}
 
 	/**
@@ -929,8 +936,13 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @return int
 	 */
 	public function start($timeout = 0) {
+		if ($this->started) return -1;
+		else $this->started = true;
 		$this->logger->log(self::LOGGER_EVENT_START);
-		while($this->tick($timeout));
+		while($this->tick((int)$timeout));
+		$this->drainDrawers();
+		$this->logger->log(self::LOGGER_EVENT_STOP);
+		$this->started = false;
 		return 0;
 	}
 
@@ -939,12 +951,9 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @return bool
 	 */
 	public function stop() {
-		if ($this->continue) {
-			$this->logger->log(self::LOGGER_EVENT_STOP);
-			$this->continue = false;
-			return true;
-		}
-		return false;
+		if (!$this->continue) return false;
+		$this->continue = false;
+		return true;
 	}
 
 	/**

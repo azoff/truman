@@ -19,17 +19,13 @@ class Truman_Test extends \PHPUnit_Framework_TestCase {
 	public function testServer() {
 		$port = 12345;
 		$accumulator = new DeskCallbackAccumulator();
-		$options = $accumulator->optionsExpectedResults(2);
+		$options = $accumulator->optionsExpectedResults(1);
 		Truman::setDesk($port, $options);
 		Truman::setClient($port);
 		$buck = Truman::enqueue('usleep', [100]);
 		Truman::listen();
-		$results = $accumulator->getResults();
-		foreach ($results as $result) {
-			$test = $result->getBuck();
-			if ($test instanceof Notification) continue;
-			else $this->assertEquals($buck, $test);
-		}
+		$result = $accumulator->getResultFirst();
+		$this->assertEquals($buck, $result->getBuck());
 		Truman::getDesk()->close();
 	}
 
