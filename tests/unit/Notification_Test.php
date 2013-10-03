@@ -9,8 +9,8 @@ class Notification_Test extends \PHPUnit_Framework_TestCase {
 	
 	public function testClientUpdate() {
 		$client = new Client();
-		$notif = new Notification(Notification::TYPE_CLIENT_UPDATE, $client->getSignature());
-		$this->assertTrue($notif->isClientUpdate());
+		$notif = new Notification(Notification::TYPE_DESK_CLIENT_UPDATE, $client->getSignature());
+		$this->assertTrue($notif->isDeskClientUpdate());
 		$this->assertEquals($client->getSignature(), $notif->getNotice());
 	}
 

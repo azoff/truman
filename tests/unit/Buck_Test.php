@@ -5,7 +5,35 @@ use truman\core\Buck;
 use truman\core\Exception;
 
 class Buck_Test extends \PHPUnit_Framework_TestCase {
-	
+
+	public function testContext() {
+
+		$buck = new Buck();
+		$this->assertEquals($buck->getUUID(), $buck->getContext());
+
+		Buck::setThreadContext($pid = getmypid(), 'test');
+
+		$buck = new Buck();
+		$this->assertEquals(Buck::getThreadContext($pid), $buck->getContext());
+
+		$buck = new Buck(Buck::CALLABLE_NOOP, [], [Buck::OPTION_CONTEXT => $context = 'foo']);
+		$this->assertEquals($context, $buck->getContext());
+
+		$contextBuck = new Buck();
+
+		Buck::unsetThreadContext($pid);
+
+		$buck = new Buck(Buck::CALLABLE_NOOP, [], [Buck::OPTION_CONTEXT => $contextBuck]);
+		$this->assertEquals($contextBuck->getContext(), $buck->getContext());
+
+		try {
+			new Buck(Buck::CALLABLE_NOOP, [], [Buck::OPTION_CONTEXT => new \stdClass()]);
+		} catch (Exception $ex) { }
+
+		$this->assertTrue(isset($ex));
+
+	}
+
 	public function testInvoke() {
 		$buck = new Buck('is_null', [null]);
 		$this->assertTrue($buck->invoke());

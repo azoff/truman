@@ -14,17 +14,22 @@ class Desk implements \JsonSerializable, LoggerContext {
 	/**
 	 * Tracked Buck is in this Desk's priority queue
 	 */
-	const STATE_ENQUEUED  = 'ENQUEUED';
+	const BUCK_STATE_ENQUEUED  = 'ENQUEUED';
 
 	/**
 	 * Tracked Buck is currently delegated to one of this Desk's Drawers
 	 */
-	const STATE_DELEGATED = 'DELEGATED';
+	const BUCK_STATE_DELEGATED = 'DELEGATED';
+
+	/**
+	 * Tracked Buck is currently delayed because its context is disabled
+	 */
+	const BUCK_STATE_DELAYED   = 'DELAYED';
 
 	/**
 	 * Untracked Buck
 	 */
-	const STATE_MISSING   = 'MISSING';
+	const BUCK_STATE_MISSING   = 'MISSING';
 
 	const LOGGER_TYPE = 'DESK';
 
@@ -54,14 +59,19 @@ class Desk implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_REFRESHED     = 'REFRESHED';
 
 	/**
+	 * Occurs when a Buck context is enabled for processing
+	 */
+	const LOGGER_CONTEXT_ENABLED     = 'CONTEXT_ENABLED';
+
+	/**
+	 * Occurs when a Buck context is disabled for processing
+	 */
+	const LOGGER_CONTEXT_DISABLED    = 'CONTEXT_DISABLED';
+
+	/**
 	 * Occurs when this Desk receives something it did not expect
 	 */
 	const LOGGER_EVENT_RECEIVE_ERROR = 'RECEIVE_ERROR';
-
-	/**
-	 * Occurs when this Desk routes a Buck to another Desk (deduplication)
-	 */
-	const LOGGER_EVENT_BUCK_REROUTE  = 'BUCK_REROUTE';
 
 	/**
 	 * Occurs when this Desk ignores a Client update (older, or identical client)
@@ -121,9 +131,10 @@ class Desk implements \JsonSerializable, LoggerContext {
 	private $auto_reap_drawers;
 
 	private $queue;
-	private $buck_states  = [];
-	private $buck_objects = [];
+	private $buck_states     = [];
+	private $buck_objects    = [];
 	private $bucks_delegated = [];
+	private $bucks_delayed   = [];
 
 	private $stdins       = [];
 	private $stdouts      = [];
@@ -265,10 +276,15 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @param Notification $notification The notification to check.
 	 */
 	public function checkNotification(Notification $notification) {
-		if ($notification->isClientUpdate())
-			$this->updateClient($notification);
-		if ($notification->isDeskRefresh())
-			$this->refreshDrawers($notification);
+		$notice = $notification->getNotice();
+		if ($notification->isDeskClientUpdate())
+			$this->updateClient($notice);
+		else if ($notification->isDeskRefresh())
+			$this->refreshDrawers($notice);
+		else if ($notification->isDeskContextEnable())
+			$this->enableContext($notice);
+		else if ($notification->isDeskContextDisable())
+			$this->disableContext($notice);
 	}
 
 	/**
@@ -356,7 +372,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (!$this->isTrackingBuck($buck)) {
 			$this->queue->insert($buck->getUUID(), $priority = $buck->getPriority());
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_ENQUEUED, $priority);
-			$this->trackBuck($buck, self::STATE_ENQUEUED);
+			$this->trackBuck($buck, self::BUCK_STATE_ENQUEUED);
 			return $buck;
 		} else {
 			$buck->getLogger()->log(Buck::LOGGER_EVENT_DEDUPED, $this->getBuckState($buck));
@@ -366,16 +382,57 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	/**
 	 * Restarts all child Drawers, effectively refreshing their loaded code
-	 * @param Notification $notification
+	 * @param string $trigger the entity that triggered the refresh (optional, for logging)
 	 */
-	public function refreshDrawers(Notification $notification) {
+	public function refreshDrawers($trigger = null) {
 		while (count($this->bucks_delegated))
 			$this->receiveResults();
 		foreach ($this->getDrawerKeys() as $key) {
 			$this->killDrawer($key);
 			$this->spawnDrawer();
 		}
-		$this->getLogger()->log(self::LOGGER_EVENT_REFRESHED, $notification->getUUID());
+		$this->getLogger()->log(self::LOGGER_EVENT_REFRESHED, $trigger);
+	}
+
+	/**
+	 * Enables a Buck context for processing. Also retries any delayed bucks to do a previous disabled context
+	 * @param string $context The context to enable
+	 */
+	public function enableContext($context) {
+		if ($this->isContextDisabled($context)) {
+			$this->getLogger()->log(self::LOGGER_CONTEXT_ENABLED, $context);
+			foreach ($this->bucks_delayed[$context] as $delayed_buck)
+				$this->retryBuck($delayed_buck);
+		}
+	}
+
+	/**
+	 * Disables a Buck context from processing. Bucks of a disabled context are delayed.
+	 * @param string $context The context to disable
+	 */
+	public function disableContext($context) {
+		if ($this->isContextEnabled($context)) {
+			$this->getLogger()->log(self::LOGGER_CONTEXT_DISABLED, $context);
+			$this->bucks_delayed[$context] = [];
+		}
+	}
+
+	/**
+	 * Checks if a Buck context is disabled
+	 * @param string $context The context to test
+	 * @return bool true if the context is disabled
+	 */
+	public function isContextDisabled($context) {
+		return isset($this->bucks_delayed[$context]);
+	}
+
+	/**
+	 * Checks if a Buck context is enabled
+	 * @param string $context The context to test
+	 * @return bool true if the context is enabled
+	 */
+	public function isContextEnabled($context) {
+		return !$this->isContextDisabled($context);
 	}
 
 	/**
@@ -394,7 +451,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * @param bool $untrack untracks the Buck on top of dequeuing it
 	 * @return null|Buck The top Buck from the queue, or null if the queue is empty or the Buck is untracked
 	 */
-	private function dequeueBuck($untrack = true) {
+	private function dequeueBuck($untrack = false) {
 		if ($this->queue->isEmpty()) return null;
 		$buck = $this->getBuck($this->queue->extract());
 		if ($untrack) $buck = $this->untrackBuck($buck);
@@ -454,7 +511,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 	public function getBuckState(Buck $buck) {
 		if ($this->isTrackingBuck($buck))
 			return $this->buck_states[$buck->getUUID()];
-		return self::STATE_MISSING;
+		return self::BUCK_STATE_MISSING;
 	}
 
 	/**
@@ -463,6 +520,20 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 */
 	public function getBuckCount() {
 		return count($this->buck_objects);
+	}
+
+	/**
+	 * Gets the count of delayed Bucks for all, or a given, context
+	 * @param null|string $context The context to check for, leave null for all contexts
+	 * @return int The count of delayed Bucks
+	 */
+	public function getDelayedBuckCount($context = null) {
+		$count = 0;
+		$keys = is_null($context) ? array_keys($this->bucks_delayed) : [$context];
+		foreach ($keys as $key)
+			if (array_key_exists($key, $this->bucks_delayed))
+				$count += count($this->bucks_delayed[$key]);
+		return $count;
 	}
 
 	/**
@@ -496,11 +567,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 	/**
 	 * Retries processing on a Buck
 	 * @param Buck $buck The Buck to retry
-	 * @param string|null $key The key of the drawer that caused a retry
 	 */
-	private function retryBuck(Buck $buck, $key = null) {
-		if (!is_null($key))
-			$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $this->process_pids[$key]);
+	private function retryBuck(Buck $buck) {
 		$buck->getLogger()->log(Buck::LOGGER_EVENT_RETRY);
 		$this->enqueueBuck($this->untrackBuck($buck));
 	}
@@ -524,7 +592,8 @@ class Desk implements \JsonSerializable, LoggerContext {
 		if (isset($this->bucks_delegated[$key])) {
 			$uuid = $this->bucks_delegated[$key];
 			$buck = $this->getBuck($uuid);
-			$this->retryBuck($buck, $key);
+			$buck->getLogger()->log(Buck::LOGGER_EVENT_DELEGATE_ERROR, $this->process_pids[$key]);
+			$this->retryBuck($buck);
 		}
 
 		// stop tracking the process
@@ -535,6 +604,15 @@ class Desk implements \JsonSerializable, LoggerContext {
 		unset($this->stderrs[$key]);
 		unset($this->processes[$key]);
 
+	}
+
+	/**
+	 * Checks if a Buck should be delayed for later execution
+	 * @param Buck $buck The Buck to check
+	 * @return bool true if the Buck should be delayed
+	 */
+	public function shouldDelayBuck(Buck $buck) {
+		return $this->isContextDisabled($buck->getContext());
 	}
 
 	/**
@@ -615,7 +693,11 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 		// check ownership, try to reroute, reenqueue if reroute failed
 		if (!$this->ownsBuck($buck))
-			return $this->rerouteBuck($buck, $timeout) ? $this->dequeueBuck() : null;
+			return $this->rerouteBuck($buck, $timeout) ? $this->dequeueBuck(true) : null;
+
+		// check if the Buck should be delayed
+		if ($this->shouldDelayBuck($buck))
+			return $this->delayBuck($buck) ? $this->dequeueBuck() : null;
 
 		// try to send the buck to the streams, or reenqueue if sending failed
 		if (!$this->sendBuckToStreams($buck, $this->stdins, $timeout))
@@ -626,7 +708,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 			call_user_func($this->buck_processed_handler, $buck, $this);
 
 		// dequeue the Buck, but keep tracking it
-		return $this->dequeueBuck(false);
+		return $this->dequeueBuck();
 
 	}
 
@@ -768,12 +850,27 @@ class Desk implements \JsonSerializable, LoggerContext {
 	 * Reroutes a Buck from this Desk to its target Desk
 	 * @param Buck $buck The Buck to reroute
 	 * @param int $timeout The time to wait until rerouting is possible
-	 * @return null|Buck The
+	 * @return null|Buck The rerouted Buck, or null if unable to reroute
 	 */
 	public function rerouteBuck(Buck $buck, $timeout = 0) {
-		$this->logger->log(self::LOGGER_EVENT_BUCK_REROUTE, $buck->getLoggerId());
+		$client = $this->getClient();
+		$target = $client->getDeskSocket($buck)->getHostAndPort();
+		$buck->getLogger()->log(Buck::LOGGER_EVENT_REROUTE, $target);
 		$buck->setRoutingDesk($this);
-		return $this->getClient()->sendBuck($buck, $timeout);
+		return $client->sendBuck($buck, $timeout);
+	}
+
+	/**
+	 * Delays a Buck's processing until its context is reenabled
+	 * @param Buck $buck The buck to delay (by context)
+	 * @return Buck The delayed Buck
+	 */
+	public function delayBuck(Buck $buck) {
+		$context = $buck->getContext();
+		$buck->getLogger()->log(Buck::LOGGER_EVENT_DELAYED, $context);
+		$this->trackBuck($buck, self::BUCK_STATE_DELAYED);
+		$this->bucks_delayed[$context][$buck->getUUID()] = $buck;
+		return $buck;
 	}
 
 	/**
@@ -805,7 +902,7 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 			$this->bucks_delegated[$key] = $buck->getUUID();
 
-			return $this->trackBuck($written, self::STATE_DELEGATED);
+			return $this->trackBuck($written, self::BUCK_STATE_DELEGATED);
 
 		}
 
@@ -883,13 +980,13 @@ class Desk implements \JsonSerializable, LoggerContext {
 
 	/**
 	 * Checks to see if the Client in the Notification can replace this Desk's Client, and then replaces it.
-	 * @param Notification $notification The notification containing a Client signature
+	 * @param string $signature The Client signature to check for update
 	 * @return null|Client the Client being used by the Desk
 	 */
-	public function updateClient(Notification $notification) {
+	public function updateClient($signature) {
 
 		$existing = $this->getClient();
-		$client = Client::fromSignature($notification->getNotice());
+		$client = Client::fromSignature($signature);
 
 		if (!$existing) {
 			$this->logger->log(self::LOGGER_EVENT_CLIENT_UPDATE, $client->getLoggerId());

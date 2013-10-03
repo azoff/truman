@@ -47,6 +47,16 @@ class Buck implements \JsonSerializable, LoggerContext {
 	const LOGGER_EVENT_RETRY             = 'RETRY';
 
 	/**
+	 * Occurs when a Desk delays the processing of a Buck
+	 */
+	const LOGGER_EVENT_DELAYED           = 'DELAYED';
+
+	/**
+	 * Occurs when a Desk routes this Buck to another Desk (deduplication)
+	 */
+	const LOGGER_EVENT_REROUTE  = 'REROUTE';
+
+	/**
 	 * Occurs when a Desk adds a Buck to its priority queue
 	 */
 	const LOGGER_EVENT_ENQUEUED          = 'ENQUEUED';
@@ -122,11 +132,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 	const OPTION_CHANNEL = 'channel';
 
 	/**
-	 * Designates whether or not closures are allowed as the callable for a Buck
-	 */
-	const OPTION_ALLOW_CLOSURES = 'allow_closures';
-
-	/**
 	 * Any options to be passed into the Buck's Logger::__construct method
 	 */
 	const OPTION_LOGGER_OPTS = 'logger_options';
@@ -161,7 +166,6 @@ class Buck implements \JsonSerializable, LoggerContext {
 	private static $_DEFAULT_OPTIONS = [
 		self::OPTION_PRIORITY       => self::PRIORITY_MEDIUM,
 		self::OPTION_CHANNEL        => self::CHANNEL_DEFAULT,
-		self::OPTION_ALLOW_CLOSURES => false,
 		self::OPTION_LOGGER_OPTS    => [],
 		self::OPTION_CONTEXT        => null,
 		self::OPTION_MEMORY_LIMIT   => 134217728, // 128MB
@@ -185,10 +189,16 @@ class Buck implements \JsonSerializable, LoggerContext {
 				'method'  => __METHOD__
 			]);
 
+		if ($callable_name === 'Closure::__invoke')
+			throw new Exception('Closures are not allowed', [
+				'context' => $this,
+				'method'  => __METHOD__
+			]);
+
 		$this->args   = $args;
 		$this->kwargs = Util::isKeyedArray($args);
 
-		$this->callable = $options[self::OPTION_ALLOW_CLOSURES] ? $callable : $callable_name;
+		$this->callable = $callable_name;
 		$this->priority = (int) $options[self::OPTION_PRIORITY];
 		$this->uuid     = $this->calculateUUID();
 

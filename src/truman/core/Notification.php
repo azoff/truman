@@ -7,7 +7,7 @@ class Notification extends Buck {
 	/**
 	 * Asks a Desk to check if it should update its Client with the one in the Notification
 	 */
-	const TYPE_CLIENT_UPDATE = 0;
+	const TYPE_DESK_CLIENT_UPDATE = 0;
 
 	/**
 	 * Tells a Desk to restart all of it's Drawers. Can be useful for loading new code
@@ -18,6 +18,16 @@ class Notification extends Buck {
 	 * Tells a Drawer to exit gracefully
 	 */
 	const TYPE_DRAWER_SIGNAL = 2;
+
+	/**
+	 * Tells a Desk to ignore Bucks of a given context
+	 */
+	const TYPE_DESK_CONTEXT_DISABLE = 3;
+
+	/**
+	 * Tells a Desk to process Bucks of a given context
+	 */
+	const TYPE_DESK_CONTEXT_ENABLE = 4;
 
 	private $type, $notice;
 
@@ -83,9 +93,12 @@ class Notification extends Buck {
 	 */
 	public function getTypeName() {
 		switch($this->getType()) {
-			case self::TYPE_CLIENT_UPDATE: return 'CLIENT_UPDATE';
-			case self::TYPE_DESK_REFRESH:  return 'DESK_REFRESH';
-			case self::TYPE_DRAWER_SIGNAL: return 'DRAWER_SIGNAL';
+			case self::TYPE_DESK_REFRESH:         return 'DESK_REFRESH';
+			case self::TYPE_DESK_CLIENT_UPDATE:   return 'DESK_CLIENT_UPDATE';
+			case self::TYPE_DESK_CONTEXT_DISABLE: return 'DESK_CONTEXT_DISABLE';
+			case self::TYPE_DESK_CONTEXT_ENABLE:  return 'DESK_CONTEXT_ENABLE';
+			case self::TYPE_DRAWER_SIGNAL:        return 'DRAWER_SIGNAL';
+			default:                              return 'UNKNOWN';
 		}
 	}
 
@@ -101,8 +114,8 @@ class Notification extends Buck {
 	 * Convenience method to get whether or not this is a client update Notification
 	 * @return bool
 	 */
-	public function isClientUpdate() {
-		return $this->getType() === self::TYPE_CLIENT_UPDATE;
+	public function isDeskClientUpdate() {
+		return $this->getType() === self::TYPE_DESK_CLIENT_UPDATE;
 	}
 
 	/**
@@ -119,6 +132,22 @@ class Notification extends Buck {
 	 */
 	public function isDeskRefresh() {
 		return $this->getType() === self::TYPE_DESK_REFRESH;
+	}
+
+	/**
+	 * Convenience method to get whether or not this is a desk context enable Notification
+	 * @return bool
+	 */
+	public function isDeskContextEnable() {
+		return $this->getType() === self::TYPE_DESK_CONTEXT_ENABLE;
+	}
+
+	/**
+	 * Convenience method to get whether or not this is a desk context disable Notification
+	 * @return bool
+	 */
+	public function isDeskContextDisable() {
+		return $this->getType() === self::TYPE_DESK_CONTEXT_DISABLE;
 	}
 
 	/**

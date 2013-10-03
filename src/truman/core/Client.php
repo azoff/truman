@@ -257,7 +257,7 @@ class Client implements \JsonSerializable, LoggerContext {
 		if ($timeout < 0) return;
 		if (isset($this->notified) && !$this->notified) {
 			$signature    = $this->getSignature();
-			$notification = new Notification(Notification::TYPE_CLIENT_UPDATE, $signature);
+			$notification = new Notification(Notification::TYPE_DESK_CLIENT_UPDATE, $signature);
 			$this->logger->log(self::LOGGER_EVENT_NOTIFY_START, $signature);
 			foreach ($this->desk_specs as $target => $desk_spec) {
 				$socket = $this->createOrGetSocket($target, $desk_spec);

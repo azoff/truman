@@ -11,6 +11,31 @@ use truman\core\Util;
 
 class Desk_Test extends \PHPUnit_Framework_TestCase {
 
+	public function testDelayBuck() {
+		$accumulator = new DeskCallbackAccumulator();
+		$options = $accumulator->optionsExpectedBucksOut(3, [Desk::OPTION_DRAWER_COUNT => 3]);
+		$desk = new Desk(null, $options);
+		$disabler = new Notification(Notification::TYPE_DESK_CONTEXT_DISABLE, $disabled_context = 'delay me');
+		$disabled = new Buck(Buck::CALLABLE_NOOP, [1], [Buck::OPTION_CONTEXT => $disabled_context]);
+		$enabled  = new Buck(Buck::CALLABLE_NOOP, [2], [Buck::OPTION_CONTEXT => 'don\'t delay me']);
+		$desk->enqueueBuck($disabler);
+		$desk->enqueueBuck($disabled);
+		$desk->enqueueBuck($enabled);
+
+		$this->assertEquals(3, count($desk->processBucks()));
+		$this->assertEquals(0, $desk->getQueueSize());
+		$this->assertEquals(1, $desk->getDelayedBuckCount());
+		$this->assertEquals(1, $desk->getDelayedBuckCount($disabled_context));
+
+		$enabler = new Notification(Notification::TYPE_DESK_CONTEXT_ENABLE, $disabled_context);
+		$desk->enqueueBuck($enabler);
+
+		$this->assertEquals($enabler, $desk->processBuck());
+		$this->assertEquals(1, $desk->getQueueSize());
+
+		$desk->close();
+	}
+
 	public function testRetryBuck() {
 		$buck = new Buck('sleep', ['5']);
 		$desk = new Desk(null, [Desk::OPTION_DRAWER_COUNT => 1]);
@@ -21,6 +46,7 @@ class Desk_Test extends \PHPUnit_Framework_TestCase {
 		$desk->killDrawers();
 		$this->assertEquals(1, $desk->getQueueSize());
 		$this->assertEquals($buck, $desk->nextBuck());
+		$desk->close();
 	}
 
 	public function testInclude() {
